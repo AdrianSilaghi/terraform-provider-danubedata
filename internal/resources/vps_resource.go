@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
@@ -452,12 +453,40 @@ func (r *VpsResource) ImportState(ctx context.Context, req resource.ImportStateR
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+// extractImageID extracts the short image ID from a full registry path
+// e.g., "registry.danubedata.ro/platform/kubevirt-ubuntu:ubuntu-24.04-2025.11.03" -> "ubuntu-24.04"
+func extractImageID(fullPath string) string {
+	// If it doesn't contain a registry path, return as-is
+	if !strings.Contains(fullPath, "/") {
+		return fullPath
+	}
+
+	// Extract the tag part after the colon
+	// e.g., "kubevirt-ubuntu:ubuntu-24.04-2025.11.03" -> "ubuntu-24.04-2025.11.03"
+	parts := strings.Split(fullPath, ":")
+	if len(parts) < 2 {
+		return fullPath
+	}
+	tag := parts[len(parts)-1]
+
+	// Remove the date suffix (e.g., "-2025.11.03")
+	// Pattern: distro-version-YYYY.MM.DD
+	datePattern := regexp.MustCompile(`-\d{4}\.\d{2}\.\d{2}$`)
+	imageID := datePattern.ReplaceAllString(tag, "")
+
+	return imageID
+}
+
 func (r *VpsResource) mapVpsToState(vps *client.VpsInstance, data *VpsResourceModel) {
 	data.ID = types.StringValue(vps.ID)
 	data.Name = types.StringValue(vps.Name)
 	data.Status = types.StringValue(vps.Status)
 	data.ResourceProfile = types.StringValue(vps.ResourceProfile)
-	data.Image = types.StringValue(vps.Image)
+	// Only set image if not already set (e.g., during import)
+	// The API returns the full image path, but users provide short IDs like "ubuntu-24.04"
+	if data.Image.IsNull() || data.Image.IsUnknown() {
+		data.Image = types.StringValue(extractImageID(vps.Image))
+	}
 	data.Datacenter = types.StringValue(vps.Datacenter)
 	data.CPUCores = types.Int64Value(int64(vps.CPUCores))
 	data.MemorySizeGB = types.Int64Value(int64(vps.MemorySizeGB))
