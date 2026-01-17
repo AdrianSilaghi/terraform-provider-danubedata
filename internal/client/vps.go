@@ -61,14 +61,30 @@ type UpdateVpsRequest struct {
 
 // VpsImage represents an available VPS image
 type VpsImage struct {
-	ID          string  `json:"id"`
-	Image       string  `json:"image"`
-	Label       string  `json:"label"`
-	Description string  `json:"description"`
-	Distro      string  `json:"distro"`
-	Version     string  `json:"version"`
-	Family      *string `json:"family"`
-	DefaultUser string  `json:"default_user"`
+	ID          string      `json:"id"`
+	Image       string      `json:"image"`
+	Label       string      `json:"label"`
+	Description string      `json:"description"`
+	Distro      string      `json:"distro"`
+	Version     interface{} `json:"version"` // Can be string or number from PHP
+	Family      *string     `json:"family"`
+	DefaultUser string      `json:"default_user"`
+}
+
+// GetVersion returns the version as a string regardless of JSON type
+func (v *VpsImage) GetVersion() string {
+	switch val := v.Version.(type) {
+	case string:
+		return val
+	case float64:
+		// JSON numbers are decoded as float64
+		if val == float64(int(val)) {
+			return fmt.Sprintf("%d", int(val))
+		}
+		return fmt.Sprintf("%g", val)
+	default:
+		return fmt.Sprintf("%v", val)
+	}
 }
 
 type createVpsResponse struct {

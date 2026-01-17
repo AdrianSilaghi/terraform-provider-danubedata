@@ -122,7 +122,7 @@ func (d *VpsImagesDataSource) Read(ctx context.Context, req datasource.ReadReque
 			Label:       types.StringValue(img.Label),
 			Description: types.StringValue(img.Description),
 			Distro:      types.StringValue(img.Distro),
-			Version:     types.StringValue(img.Version),
+			Version:     types.StringValue(img.GetVersion()),
 			DefaultUser: types.StringValue(img.DefaultUser),
 		}
 		if img.Family != nil {
