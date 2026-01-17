@@ -138,6 +138,11 @@ func (c *Client) DeleteVps(ctx context.Context, id string) error {
 	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/vps/%s", id), nil, nil)
 }
 
+// StopVps stops a VPS instance
+func (c *Client) StopVps(ctx context.Context, id string) error {
+	return c.doRequest(ctx, "POST", fmt.Sprintf("/vps/%s/stop", id), nil, nil)
+}
+
 // GetVpsStatus gets the current status of a VPS instance
 func (c *Client) GetVpsStatus(ctx context.Context, id string) (string, error) {
 	var resp statusVpsResponse

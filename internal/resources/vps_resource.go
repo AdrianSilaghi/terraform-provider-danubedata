@@ -425,11 +425,47 @@ func (r *VpsResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
 	defer cancel()
 
+	vpsID := data.ID.ValueString()
+
 	tflog.Debug(ctx, "Deleting VPS instance", map[string]interface{}{
-		"id": data.ID.ValueString(),
+		"id": vpsID,
 	})
 
-	err := r.client.DeleteVps(ctx, data.ID.ValueString())
+	// Check current status - VPS must be stopped before deletion
+	status, err := r.client.GetVpsStatus(ctx, vpsID)
+	if err != nil {
+		if client.IsNotFound(err) {
+			return
+		}
+		resp.Diagnostics.AddError("Failed to get VPS status", err.Error())
+		return
+	}
+
+	// If running, stop it first
+	if status == "running" {
+		tflog.Info(ctx, "VPS is running, stopping before deletion", map[string]interface{}{
+			"id": vpsID,
+		})
+
+		err = r.client.StopVps(ctx, vpsID)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to stop VPS before deletion", err.Error())
+			return
+		}
+
+		// Wait for VPS to be stopped
+		err = r.client.WaitForVpsStatus(ctx, vpsID, "stopped", deleteTimeout)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"VPS failed to stop",
+				fmt.Sprintf("VPS %s did not stop within the timeout: %s", vpsID, err),
+			)
+			return
+		}
+	}
+
+	// Now delete the VPS
+	err = r.client.DeleteVps(ctx, vpsID)
 	if err != nil {
 		if client.IsNotFound(err) {
 			return
@@ -439,11 +475,11 @@ func (r *VpsResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 	}
 
 	// Wait for VPS to be deleted
-	err = r.client.WaitForVpsDeletion(ctx, data.ID.ValueString(), deleteTimeout)
+	err = r.client.WaitForVpsDeletion(ctx, vpsID, deleteTimeout)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"VPS failed to be deleted",
-			fmt.Sprintf("VPS %s was not deleted within the timeout: %s", data.ID.ValueString(), err),
+			fmt.Sprintf("VPS %s was not deleted within the timeout: %s", vpsID, err),
 		)
 		return
 	}
