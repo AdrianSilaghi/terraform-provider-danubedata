@@ -1,0 +1,24 @@
+# Binaries
+terraform-provider-danubedata
+*.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.lock.hcl
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage.txt
+coverage.html
