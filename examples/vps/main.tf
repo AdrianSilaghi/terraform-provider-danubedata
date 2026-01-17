@@ -10,8 +10,8 @@ provider "danubedata" {
   # API token can be set via DANUBEDATA_API_TOKEN environment variable
   # api_token = var.danubedata_token
 
-  # Base URL defaults to https://danubedata.com/api/v1
-  # base_url = "https://danubedata.com/api/v1"
+  # Base URL defaults to https://danubedata.ro/api/v1
+  # base_url = "https://danubedata.ro/api/v1"
 }
 
 # List available VPS images

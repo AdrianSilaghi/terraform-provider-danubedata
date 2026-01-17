@@ -44,7 +44,7 @@ func (p *DanubeDataProvider) Schema(ctx context.Context, req provider.SchemaRequ
 		Description: "Terraform provider for DanubeData managed infrastructure. Manage VPS instances, databases, caches, and object storage.",
 		Attributes: map[string]schema.Attribute{
 			"base_url": schema.StringAttribute{
-				Description: "Base URL for the DanubeData API. Defaults to https://danubedata.com/api/v1. Can also be set via DANUBEDATA_BASE_URL environment variable.",
+				Description: "Base URL for the DanubeData API. Defaults to https://danubedata.ro/api/v1. Can also be set via DANUBEDATA_BASE_URL environment variable.",
 				Optional:    true,
 			},
 			"api_token": schema.StringAttribute{
@@ -69,7 +69,7 @@ func (p *DanubeDataProvider) Configure(ctx context.Context, req provider.Configu
 		baseURL = config.BaseURL.ValueString()
 	}
 	if baseURL == "" {
-		baseURL = "https://danubedata.com/api/v1"
+		baseURL = "https://danubedata.ro/api/v1"
 	}
 
 	apiToken := os.Getenv("DANUBEDATA_API_TOKEN")
