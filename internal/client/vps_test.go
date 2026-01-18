@@ -112,7 +112,7 @@ func TestClient_GetVps(t *testing.T) {
 func TestClient_GetVps_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"message": "VPS not found"}`))
+		_, _ = w.Write([]byte(`{"message": "VPS not found"}`))
 	})
 	defer server.Close()
 
@@ -202,7 +202,7 @@ func TestClient_StartVps(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "VPS starting"}`))
+		_, _ = w.Write([]byte(`{"message": "VPS starting"}`))
 	})
 	defer server.Close()
 

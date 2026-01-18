@@ -174,7 +174,7 @@ func TestClient_RestoreVpsSnapshot(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "Restore initiated"}`))
+		_, _ = w.Write([]byte(`{"message": "Restore initiated"}`))
 	})
 	defer server.Close()
 

@@ -115,7 +115,7 @@ func TestClient_GetStorageBucket(t *testing.T) {
 func TestClient_GetStorageBucket_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"message": "Bucket not found"}`))
+		_, _ = w.Write([]byte(`{"message": "Bucket not found"}`))
 	})
 	defer server.Close()
 
@@ -284,7 +284,7 @@ func TestClient_GetStorageAccessKey(t *testing.T) {
 func TestClient_GetStorageAccessKey_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"message": "Access key not found"}`))
+		_, _ = w.Write([]byte(`{"message": "Access key not found"}`))
 	})
 	defer server.Close()
 

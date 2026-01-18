@@ -134,7 +134,7 @@ func TestClient_GetDatabase(t *testing.T) {
 func TestClient_GetDatabase_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"message": "Database instance not found"}`))
+		_, _ = w.Write([]byte(`{"message": "Database instance not found"}`))
 	})
 	defer server.Close()
 
@@ -223,7 +223,7 @@ func TestClient_StartDatabase(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "Database starting"}`))
+		_, _ = w.Write([]byte(`{"message": "Database starting"}`))
 	})
 	defer server.Close()
 

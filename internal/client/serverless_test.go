@@ -128,7 +128,7 @@ func TestClient_GetServerless(t *testing.T) {
 func TestClient_GetServerless_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"message": "Serverless container not found"}`))
+		_, _ = w.Write([]byte(`{"message": "Serverless container not found"}`))
 	})
 	defer server.Close()
 

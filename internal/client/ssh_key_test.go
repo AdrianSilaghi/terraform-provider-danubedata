@@ -101,7 +101,7 @@ func TestClient_GetSshKey(t *testing.T) {
 func TestClient_GetSshKey_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"message": "SSH key not found"}`))
+		_, _ = w.Write([]byte(`{"message": "SSH key not found"}`))
 	})
 	defer server.Close()
 

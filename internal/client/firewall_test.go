@@ -130,7 +130,7 @@ func TestClient_GetFirewall(t *testing.T) {
 func TestClient_GetFirewall_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"message": "Firewall not found"}`))
+		_, _ = w.Write([]byte(`{"message": "Firewall not found"}`))
 	})
 	defer server.Close()
 
@@ -272,7 +272,7 @@ func TestClient_AttachFirewall(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "Firewall attached"}`))
+		_, _ = w.Write([]byte(`{"message": "Firewall attached"}`))
 	})
 	defer server.Close()
 
@@ -321,7 +321,7 @@ func TestClient_DeployFirewall(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "Firewall deployment initiated"}`))
+		_, _ = w.Write([]byte(`{"message": "Firewall deployment initiated"}`))
 	})
 	defer server.Close()
 
