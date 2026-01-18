@@ -1,0 +1,19 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+dist/
+terraform-provider-danubedata
+coverage.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

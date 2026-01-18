@@ -169,15 +169,18 @@ func (r *VpsResource) Schema(ctx context.Context, req resource.SchemaRequest, re
 				},
 			},
 			"cpu_cores": schema.Int64Attribute{
-				Description: "Number of CPU cores.",
+				Description: "Number of CPU cores. Can be specified during creation or update. VPS must be stopped to modify.",
+				Optional:    true,
 				Computed:    true,
 			},
 			"memory_size_gb": schema.Int64Attribute{
-				Description: "Memory size in GB.",
+				Description: "Memory size in GB. Can be specified during creation or update. VPS must be stopped to modify.",
+				Optional:    true,
 				Computed:    true,
 			},
 			"storage_size_gb": schema.Int64Attribute{
-				Description: "Storage size in GB.",
+				Description: "Storage size in GB. Can be specified during creation or update. VPS must be stopped to modify.",
+				Optional:    true,
 				Computed:    true,
 			},
 			"public_ip": schema.StringAttribute{
@@ -290,6 +293,21 @@ func (r *VpsResource) Create(ctx context.Context, req resource.CreateRequest, re
 		createReq.CustomCloudInit = &cloudInit
 	}
 
+	if !data.CPUCores.IsNull() && !data.CPUCores.IsUnknown() {
+		cpuCores := int(data.CPUCores.ValueInt64())
+		createReq.CPUCores = &cpuCores
+	}
+
+	if !data.MemorySizeGB.IsNull() && !data.MemorySizeGB.IsUnknown() {
+		memorySizeGB := int(data.MemorySizeGB.ValueInt64())
+		createReq.MemorySizeGB = &memorySizeGB
+	}
+
+	if !data.StorageSizeGB.IsNull() && !data.StorageSizeGB.IsUnknown() {
+		storageSizeGB := int(data.StorageSizeGB.ValueInt64())
+		createReq.StorageSizeGB = &storageSizeGB
+	}
+
 	tflog.Debug(ctx, "Creating VPS instance", map[string]interface{}{
 		"name": data.Name.ValueString(),
 	})
@@ -384,6 +402,29 @@ func (r *VpsResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		hasChanges = true
 	}
 
+	if !data.CPUAllocationType.Equal(state.CPUAllocationType) {
+		updateReq.CPUAllocationType = data.CPUAllocationType.ValueString()
+		hasChanges = true
+	}
+
+	if !data.CPUCores.Equal(state.CPUCores) {
+		cpuCores := int(data.CPUCores.ValueInt64())
+		updateReq.CPUCores = &cpuCores
+		hasChanges = true
+	}
+
+	if !data.MemorySizeGB.Equal(state.MemorySizeGB) {
+		memorySizeGB := int(data.MemorySizeGB.ValueInt64())
+		updateReq.MemorySizeGB = &memorySizeGB
+		hasChanges = true
+	}
+
+	if !data.StorageSizeGB.Equal(state.StorageSizeGB) {
+		storageSizeGB := int(data.StorageSizeGB.ValueInt64())
+		updateReq.StorageSizeGB = &storageSizeGB
+		hasChanges = true
+	}
+
 	if !data.Password.IsNull() && !data.Password.IsUnknown() && !data.Password.Equal(state.Password) {
 		password := data.Password.ValueString()
 		updateReq.Password = &password
@@ -396,9 +437,24 @@ func (r *VpsResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			"id": data.ID.ValueString(),
 		})
 
-		vps, err := r.client.UpdateVps(ctx, data.ID.ValueString(), updateReq)
+		_, err := r.client.UpdateVps(ctx, data.ID.ValueString(), updateReq)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to update VPS", err.Error())
+			return
+		}
+
+		// Wait for VPS to return to running state after update
+		tflog.Debug(ctx, "Waiting for VPS to reach running state after update")
+		err = r.client.WaitForVpsStatus(ctx, data.ID.ValueString(), "running", updateTimeout)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed waiting for VPS after update", err.Error())
+			return
+		}
+
+		// Refresh state after waiting
+		vps, err := r.client.GetVps(ctx, data.ID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to read VPS after update", err.Error())
 			return
 		}
 
@@ -518,6 +574,9 @@ func (r *VpsResource) mapVpsToState(vps *client.VpsInstance, data *VpsResourceMo
 	data.Name = types.StringValue(vps.Name)
 	data.Status = types.StringValue(vps.Status)
 	data.ResourceProfile = types.StringValue(vps.ResourceProfile)
+	if vps.CPUAllocationType != "" {
+		data.CPUAllocationType = types.StringValue(vps.CPUAllocationType)
+	}
 	// Only set image if not already set (e.g., during import)
 	// The API returns the full image path, but users provide short IDs like "ubuntu-24.04"
 	if data.Image.IsNull() || data.Image.IsUnknown() {

@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CI_IMAGE: ghcr.io/${{ github.repository }}/ci:latest
+
+jobs:
+  goreleaser:
+    name: Release
+    runs-on: self-hosted
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build CI image
+        run: docker build -t ${{ env.CI_IMAGE }} -f .github/Dockerfile .
+
+      - name: Run GoReleaser
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          # Create a script to handle GPG import and release
+          cat > /tmp/release.sh << 'SCRIPT'
+          #!/bin/bash
+          set -e
+
+          # Import GPG key if provided
+          if [ -n "$GPG_PRIVATE_KEY" ]; then
+            echo "Importing GPG key..."
+            echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+            # Get the fingerprint
+            GPG_FINGERPRINT=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
+            export GPG_FINGERPRINT
+
+            # Configure GPG for non-interactive signing
+            echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+            echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+            gpg-connect-agent reloadagent /bye 2>/dev/null || true
+          fi
+
+          # Run goreleaser
+          goreleaser release --clean
+          SCRIPT
+
+          chmod +x /tmp/release.sh
+
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v go-mod-cache:/go/pkg/mod \
+            -v /tmp/release.sh:/release.sh:ro \
+            -w /workspace \
+            -e GITHUB_TOKEN="${GITHUB_TOKEN}" \
+            -e GPG_PRIVATE_KEY="${GPG_PRIVATE_KEY}" \
+            -e GPG_PASSPHRASE="${GPG_PASSPHRASE}" \
+            ${{ env.CI_IMAGE }} \
+            /release.sh

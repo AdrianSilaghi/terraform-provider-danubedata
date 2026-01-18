@@ -57,5 +57,18 @@ func IsNotFound(err error) bool {
 	if apiErr, ok := err.(*APIError); ok {
 		return apiErr.StatusCode == 404
 	}
+	if _, ok := err.(*NotFoundError); ok {
+		return true
+	}
 	return false
+}
+
+// NotFoundError represents a resource not found error
+type NotFoundError struct {
+	Resource string
+	ID       string
+}
+
+func (e *NotFoundError) Error() string {
+	return fmt.Sprintf("%s with ID %s not found", e.Resource, e.ID)
 }
