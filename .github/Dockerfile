@@ -1,5 +1,5 @@
 # CI/CD Docker image for terraform-provider-danubedata
-FROM golang:1.23-bookworm
+FROM golang:1.24-bookworm
 
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

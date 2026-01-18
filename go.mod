@@ -1,6 +1,6 @@
 module github.com/AdrianSilaghi/terraform-provider-danubedata
 
-go 1.25.5
+go 1.24.0
 
 require (
 	github.com/hashicorp/terraform-plugin-framework v1.17.0
