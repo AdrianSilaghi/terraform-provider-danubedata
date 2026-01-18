@@ -100,12 +100,32 @@ func (p *DanubeDataProvider) Configure(ctx context.Context, req provider.Configu
 
 func (p *DanubeDataProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		// Compute
 		resources.NewVpsResource,
+		resources.NewServerlessResource,
+
+		// Data Services
+		resources.NewCacheResource,
+		resources.NewDatabaseResource,
+
+		// Storage
+		resources.NewStorageBucketResource,
+		resources.NewStorageAccessKeyResource,
+
+		// Security
+		resources.NewSshKeyResource,
+		resources.NewFirewallResource,
+
+		// Snapshots
+		resources.NewVpsSnapshotResource,
 	}
 }
 
 func (p *DanubeDataProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		datasources.NewVpsImagesDataSource,
+		datasources.NewCacheProvidersDataSource,
+		datasources.NewDatabaseProvidersDataSource,
+		datasources.NewSshKeysDataSource,
 	}
 }

@@ -8,33 +8,34 @@ import (
 
 // VpsInstance represents a VPS instance from the API
 type VpsInstance struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	Status           string   `json:"status"`
-	StatusLabel      string   `json:"status_label"`
-	ResourceProfile  string   `json:"resource_profile"`
-	CPUCores         int      `json:"cpu_cores"`
-	MemorySizeGB     int      `json:"memory_size_gb"`
-	StorageSizeGB    int      `json:"storage_size_gb"`
-	Image            string   `json:"image"`
-	Datacenter       string   `json:"datacenter"`
-	Node             *string  `json:"node"`
-	PublicIP         *string  `json:"public_ip"`
-	PrivateIP        *string  `json:"private_ip"`
-	IPv6Address      *string  `json:"ipv6_address"`
-	VNCAccessURL     *string  `json:"vnc_access_url"`
-	MonthlyCostCents int      `json:"monthly_cost_cents"`
-	MonthlyCost      float64  `json:"monthly_cost_dollars"`
-	DeployedAt       *string  `json:"deployed_at"`
-	CreatedAt        string   `json:"created_at"`
-	UpdatedAt        string   `json:"updated_at"`
-	TeamID           int      `json:"team_id"`
-	UserID           int      `json:"user_id"`
-	SSHKeyID         *string  `json:"ssh_key_id"`
-	CanBeStarted     bool     `json:"can_be_started"`
-	CanBeStopped     bool     `json:"can_be_stopped"`
-	CanBeRebooted    bool     `json:"can_be_rebooted"`
-	CanBeDestroyed   bool     `json:"can_be_destroyed"`
+	ID                string   `json:"id"`
+	Name              string   `json:"name"`
+	Status            string   `json:"status"`
+	StatusLabel       string   `json:"status_label"`
+	ResourceProfile   string   `json:"resource_profile"`
+	CPUAllocationType string   `json:"cpu_allocation_type"`
+	CPUCores          int      `json:"cpu_cores"`
+	MemorySizeGB      int      `json:"memory_size_gb"`
+	StorageSizeGB     int      `json:"storage_size_gb"`
+	Image             string   `json:"image"`
+	Datacenter        string   `json:"datacenter"`
+	Node              *string  `json:"node"`
+	PublicIP          *string  `json:"public_ip"`
+	PrivateIP         *string  `json:"private_ip"`
+	IPv6Address       *string  `json:"ipv6_address"`
+	VNCAccessURL      *string  `json:"vnc_access_url"`
+	MonthlyCostCents  int      `json:"monthly_cost_cents"`
+	MonthlyCost       float64  `json:"monthly_cost_dollars"`
+	DeployedAt        *string  `json:"deployed_at"`
+	CreatedAt         string   `json:"created_at"`
+	UpdatedAt         string   `json:"updated_at"`
+	TeamID            int      `json:"team_id"`
+	UserID            int      `json:"user_id"`
+	SSHKeyID          *string  `json:"ssh_key_id"`
+	CanBeStarted      bool     `json:"can_be_started"`
+	CanBeStopped      bool     `json:"can_be_stopped"`
+	CanBeRebooted     bool     `json:"can_be_rebooted"`
+	CanBeDestroyed    bool     `json:"can_be_destroyed"`
 }
 
 // CreateVpsRequest represents a request to create a VPS
@@ -50,13 +51,20 @@ type CreateVpsRequest struct {
 	Password          *string `json:"password,omitempty"`
 	PasswordConfirm   *string `json:"password_confirmation,omitempty"`
 	CustomCloudInit   *string `json:"custom_cloud_init,omitempty"`
+	CPUCores          *int    `json:"cpu_cores,omitempty"`
+	MemorySizeGB      *int    `json:"memory_size_gb,omitempty"`
+	StorageSizeGB     *int    `json:"storage_size_gb,omitempty"`
 }
 
 // UpdateVpsRequest represents a request to update a VPS
 type UpdateVpsRequest struct {
-	ResourceProfile string  `json:"resource_profile,omitempty"`
-	Password        *string `json:"password,omitempty"`
-	PasswordConfirm *string `json:"password_confirmation,omitempty"`
+	ResourceProfile   string  `json:"resource_profile,omitempty"`
+	CPUAllocationType string  `json:"cpu_allocation_type,omitempty"`
+	CPUCores          *int    `json:"cpu_cores,omitempty"`
+	MemorySizeGB      *int    `json:"memory_size_gb,omitempty"`
+	StorageSizeGB     *int    `json:"storage_size_gb,omitempty"`
+	Password          *string `json:"password,omitempty"`
+	PasswordConfirm   *string `json:"password_confirmation,omitempty"`
 }
 
 // VpsImage represents an available VPS image
@@ -138,9 +146,30 @@ func (c *Client) DeleteVps(ctx context.Context, id string) error {
 	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/vps/%s", id), nil, nil)
 }
 
+// StartVps starts a VPS instance
+func (c *Client) StartVps(ctx context.Context, id string) error {
+	return c.doRequest(ctx, "POST", fmt.Sprintf("/vps/%s/start", id), nil, nil)
+}
+
 // StopVps stops a VPS instance
 func (c *Client) StopVps(ctx context.Context, id string) error {
 	return c.doRequest(ctx, "POST", fmt.Sprintf("/vps/%s/stop", id), nil, nil)
+}
+
+// RebootVps reboots a VPS instance
+func (c *Client) RebootVps(ctx context.Context, id string) error {
+	return c.doRequest(ctx, "POST", fmt.Sprintf("/vps/%s/reboot", id), nil, nil)
+}
+
+// ReinstallVpsRequest represents a request to reinstall a VPS
+type ReinstallVpsRequest struct {
+	Image           string  `json:"image"`
+	CustomCloudInit *string `json:"custom_cloud_init,omitempty"`
+}
+
+// ReinstallVps reinstalls a VPS with a new OS image
+func (c *Client) ReinstallVps(ctx context.Context, id string, req ReinstallVpsRequest) error {
+	return c.doRequest(ctx, "POST", fmt.Sprintf("/vps/%s/reinstall", id), req, nil)
 }
 
 // GetVpsStatus gets the current status of a VPS instance
@@ -167,6 +196,21 @@ func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus s
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
+	// Check immediately before waiting
+	status, err := c.GetVpsStatus(ctx, id)
+	if err != nil {
+		if IsNotFound(err) && targetStatus == "deleted" {
+			return nil
+		}
+		return fmt.Errorf("error checking VPS status: %w", err)
+	}
+	if status == targetStatus {
+		return nil
+	}
+	if status == "error" {
+		return fmt.Errorf("VPS %s entered error state", id)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -178,7 +222,6 @@ func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus s
 
 			status, err := c.GetVpsStatus(ctx, id)
 			if err != nil {
-				// If not found and we're waiting for deletion, that's success
 				if IsNotFound(err) && targetStatus == "deleted" {
 					return nil
 				}

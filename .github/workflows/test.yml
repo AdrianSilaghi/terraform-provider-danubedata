@@ -1,0 +1,121 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-image:
+    name: Build CI Image
+    runs-on: self-hosted
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build CI image
+        id: image
+        run: |
+          CI_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/terraform-provider-danubedata-ci:latest"
+          docker build -t "$CI_IMAGE" -f .github/Dockerfile .
+          echo "name=$CI_IMAGE" >> $GITHUB_OUTPUT
+
+  build:
+    name: Build
+    runs-on: self-hosted
+    needs: build-image
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v go-mod-cache:/go/pkg/mod \
+            -w /workspace \
+            ${{ needs.build-image.outputs.image }} \
+            go build -v ./...
+
+  test:
+    name: Unit Tests
+    runs-on: self-hosted
+    needs: build-image
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v go-mod-cache:/go/pkg/mod \
+            -w /workspace \
+            ${{ needs.build-image.outputs.image }} \
+            go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
+        continue-on-error: true
+
+  lint:
+    name: Lint
+    runs-on: self-hosted
+    needs: build-image
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run golangci-lint
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v go-mod-cache:/go/pkg/mod \
+            -v golangci-lint-cache:/root/.cache/golangci-lint \
+            -w /workspace \
+            ${{ needs.build-image.outputs.image }} \
+            golangci-lint run --timeout=5m
+
+  acceptance:
+    name: Acceptance Tests
+    runs-on: self-hosted
+    needs: [build-image, build, test]
+    timeout-minutes: 60
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run acceptance tests
+        env:
+          DANUBEDATA_API_TOKEN: ${{ secrets.DANUBEDATA_API_TOKEN }}
+        run: |
+          if [ -n "$DANUBEDATA_API_TOKEN" ]; then
+            docker run --rm \
+              -v "${{ github.workspace }}:/workspace" \
+              -v go-mod-cache:/go/pkg/mod \
+              -w /workspace \
+              -e TF_ACC=1 \
+              -e DANUBEDATA_API_TOKEN="${DANUBEDATA_API_TOKEN}" \
+              ${{ needs.build-image.outputs.image }} \
+              go test -v -timeout 60m ./internal/resources/... ./internal/datasources/...
+          else
+            echo "DANUBEDATA_API_TOKEN not set, skipping acceptance tests"
+          fi

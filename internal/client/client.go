@@ -23,6 +23,14 @@ type Config struct {
 	UserAgent string
 }
 
+// Pagination represents pagination information from API responses
+type Pagination struct {
+	CurrentPage int `json:"current_page"`
+	LastPage    int `json:"last_page"`
+	PerPage     int `json:"per_page"`
+	Total       int `json:"total"`
+}
+
 func New(config Config) *Client {
 	return &Client{
 		baseURL:  config.BaseURL,
