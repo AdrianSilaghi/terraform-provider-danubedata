@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install golangci-lint
-ARG GOLANGCI_LINT_VERSION=v1.62.2
+# Install golangci-lint (v1.64+ required for Go 1.24)
+ARG GOLANGCI_LINT_VERSION=v1.64.5
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | \
     sh -s -- -b /usr/local/bin ${GOLANGCI_LINT_VERSION}
 
