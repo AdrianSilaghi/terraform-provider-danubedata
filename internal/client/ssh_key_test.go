@@ -30,7 +30,7 @@ func TestClient_CreateSshKey(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createSshKeyResponse{
+		_ = json.NewEncoder(w).Encode(createSshKeyResponse{
 			Message: "SSH key created",
 			Key: SshKey{
 				ID:          "key-123",
@@ -72,7 +72,7 @@ func TestClient_GetSshKey(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showSshKeyResponse{
+		_ = json.NewEncoder(w).Encode(showSshKeyResponse{
 			Key: SshKey{
 				ID:          "key-123",
 				Name:        "my-key",
@@ -126,7 +126,7 @@ func TestClient_ListSshKeys(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(listSshKeysResponse{
+		_ = json.NewEncoder(w).Encode(listSshKeysResponse{
 			Data: []SshKey{
 				{
 					ID:          "key-1",

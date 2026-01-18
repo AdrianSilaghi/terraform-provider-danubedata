@@ -3,20 +3,15 @@ package acctest
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 // ProtoV6ProviderFactories returns the provider factories for acceptance tests
 var ProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
@@ -40,7 +35,7 @@ func RandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, length)
 	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
+		b[i] = charset[rand.IntN(len(charset))]
 	}
 	return string(b)
 }
@@ -48,7 +43,7 @@ func RandomString(length int) string {
 // RandomPassword generates a random password meeting minimum requirements
 func RandomPassword() string {
 	// At least 12 characters with upper, lower, number, and special
-	return fmt.Sprintf("Test%s!@#%d", RandomString(8), rand.Intn(1000))
+	return fmt.Sprintf("Test%s!@#%d", RandomString(8), rand.IntN(1000))
 }
 
 // RandomSSHPublicKey generates a fake SSH public key for testing

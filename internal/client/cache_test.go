@@ -32,7 +32,7 @@ func TestClient_CreateCache(t *testing.T) {
 		port := 6379
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createCacheResponse{
+		_ = json.NewEncoder(w).Encode(createCacheResponse{
 			Message: "Cache instance created",
 			Instance: CacheInstance{
 				ID:              "cache-123",
@@ -81,7 +81,7 @@ func TestClient_GetCache(t *testing.T) {
 		endpoint := "my-cache.redis.cluster.local"
 		port := 6379
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showCacheResponse{
+		_ = json.NewEncoder(w).Encode(showCacheResponse{
 			Instance: CacheInstance{
 				ID:           "cache-123",
 				Name:         "my-cache",
@@ -118,7 +118,7 @@ func TestClient_GetCache(t *testing.T) {
 func TestClient_GetCache_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"message": "Cache instance not found"}`))
+		_, _ = w.Write([]byte(`{"message": "Cache instance not found"}`))
 	})
 	defer server.Close()
 
@@ -151,7 +151,7 @@ func TestClient_UpdateCache(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(updateCacheResponse{
+		_ = json.NewEncoder(w).Encode(updateCacheResponse{
 			Message: "Cache instance updated",
 			Instance: CacheInstance{
 				ID:           "cache-123",
@@ -207,7 +207,7 @@ func TestClient_StartCache(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "Cache starting"}`))
+		_, _ = w.Write([]byte(`{"message": "Cache starting"}`))
 	})
 	defer server.Close()
 
@@ -250,7 +250,7 @@ func TestClient_GetCacheConnectionInfo(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(CacheConnectionInfo{
+		_ = json.NewEncoder(w).Encode(CacheConnectionInfo{
 			ConnectionInfo: "redis://my-cache.redis.cluster.local:6379",
 			Password:       "secret-password",
 		})

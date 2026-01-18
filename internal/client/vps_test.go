@@ -30,7 +30,7 @@ func TestClient_CreateVps(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createVpsResponse{
+		_ = json.NewEncoder(w).Encode(createVpsResponse{
 			Message: "VPS created",
 			Instance: VpsInstance{
 				ID:     "vps-123",
@@ -74,7 +74,7 @@ func TestClient_GetVps(t *testing.T) {
 
 		publicIP := "192.168.1.1"
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showVpsResponse{
+		_ = json.NewEncoder(w).Encode(showVpsResponse{
 			Instance: VpsInstance{
 				ID:                "vps-123",
 				Name:              "test-vps",
@@ -146,7 +146,7 @@ func TestClient_UpdateVps(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showVpsResponse{
+		_ = json.NewEncoder(w).Encode(showVpsResponse{
 			Instance: VpsInstance{
 				ID:       "vps-123",
 				Name:     "test-vps",
@@ -294,7 +294,7 @@ func TestClient_GetVpsStatus(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(statusVpsResponse{
+		_ = json.NewEncoder(w).Encode(statusVpsResponse{
 			Status:      "running",
 			StatusLabel: "Running",
 		})
@@ -319,7 +319,7 @@ func TestClient_ListVpsImages(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(listImagesResponse{
+		_ = json.NewEncoder(w).Encode(listImagesResponse{
 			Images: []VpsImage{
 				{
 					ID:          "ubuntu-22.04",

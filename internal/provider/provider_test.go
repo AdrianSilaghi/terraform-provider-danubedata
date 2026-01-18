@@ -2,27 +2,10 @@ package provider
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/provider"
-	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 )
-
-// testAccProtoV6ProviderFactories is used to instantiate a provider during
-// acceptance testing. The factory function is called for each Terraform CLI
-// command executed during acceptance testing.
-var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-	"danubedata": providerserver.NewProtocol6WithError(New("test")()),
-}
-
-// testAccPreCheck validates the necessary test environment variables exist.
-func testAccPreCheck(t *testing.T) {
-	if v := os.Getenv("DANUBEDATA_API_TOKEN"); v == "" {
-		t.Fatal("DANUBEDATA_API_TOKEN must be set for acceptance tests")
-	}
-}
 
 // TestProvider_HasResources verifies the provider has the expected resources
 func TestProvider_HasResources(t *testing.T) {

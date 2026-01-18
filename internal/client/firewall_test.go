@@ -35,7 +35,7 @@ func TestClient_CreateFirewall(t *testing.T) {
 		portEnd := 22
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createFirewallResponse{
+		_ = json.NewEncoder(w).Encode(createFirewallResponse{
 			Message: "Firewall created",
 			Firewall: Firewall{
 				ID:            "fw-123",
@@ -101,7 +101,7 @@ func TestClient_GetFirewall(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showFirewallResponse{
+		_ = json.NewEncoder(w).Encode(showFirewallResponse{
 			Firewall: Firewall{
 				ID:            "fw-123",
 				Name:          "my-firewall",
@@ -155,7 +155,7 @@ func TestClient_ListFirewalls(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(listFirewallsResponse{
+		_ = json.NewEncoder(w).Encode(listFirewallsResponse{
 			Data: []Firewall{
 				{
 					ID:   "fw-1",
@@ -208,7 +208,7 @@ func TestClient_UpdateFirewall(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showFirewallResponse{
+		_ = json.NewEncoder(w).Encode(showFirewallResponse{
 			Firewall: Firewall{
 				ID:   "fw-123",
 				Name: "updated-firewall",

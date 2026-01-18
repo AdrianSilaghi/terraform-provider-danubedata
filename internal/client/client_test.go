@@ -66,7 +66,7 @@ func TestClient_DoRequest_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(testResponse{
+		_ = json.NewEncoder(w).Encode(testResponse{
 			Message: "success",
 			ID:      "123",
 		})
@@ -108,7 +108,7 @@ func TestClient_DoRequest_WithBody(t *testing.T) {
 
 		w.WriteHeader(http.StatusCreated)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "created"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "created"})
 	})
 	defer server.Close()
 
@@ -163,7 +163,7 @@ func TestClient_DoRequest_APIError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(tt.responseBody))
+				_, _ = w.Write([]byte(tt.responseBody))
 			})
 			defer server.Close()
 

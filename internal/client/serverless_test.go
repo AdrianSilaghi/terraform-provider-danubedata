@@ -33,7 +33,7 @@ func TestClient_CreateServerless(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createServerlessResponse{
+		_ = json.NewEncoder(w).Encode(createServerlessResponse{
 			Message: "Container created",
 			Container: ServerlessContainer{
 				ID:             "srv-123",
@@ -85,7 +85,7 @@ func TestClient_GetServerless(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showServerlessResponse{
+		_ = json.NewEncoder(w).Encode(showServerlessResponse{
 			Container: ServerlessContainer{
 				ID:             "srv-123",
 				Name:           "my-app",
@@ -153,7 +153,7 @@ func TestClient_ListServerless(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(listServerlessResponse{
+		_ = json.NewEncoder(w).Encode(listServerlessResponse{
 			Data: []ServerlessContainer{
 				{
 					ID:     "srv-1",
@@ -208,7 +208,7 @@ func TestClient_UpdateServerless(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showServerlessResponse{
+		_ = json.NewEncoder(w).Encode(showServerlessResponse{
 			Container: ServerlessContainer{
 				ID:           "srv-123",
 				Name:         "my-app",
@@ -256,7 +256,7 @@ func TestClient_DeleteServerless(t *testing.T) {
 func TestClient_GetServerlessStatus(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showServerlessResponse{
+		_ = json.NewEncoder(w).Encode(showServerlessResponse{
 			Container: ServerlessContainer{
 				ID:     "srv-123",
 				Name:   "my-app",
@@ -297,7 +297,7 @@ func TestClient_CreateServerless_WithGit(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createServerlessResponse{
+		_ = json.NewEncoder(w).Encode(createServerlessResponse{
 			Message: "Container created",
 			Container: ServerlessContainer{
 				ID:             "srv-124",
@@ -347,7 +347,7 @@ func TestClient_CreateServerless_WithEnvVars(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createServerlessResponse{
+		_ = json.NewEncoder(w).Encode(createServerlessResponse{
 			Message: "Container created",
 			Container: ServerlessContainer{
 				ID:     "srv-125",

@@ -30,7 +30,7 @@ func TestClient_CreateVpsSnapshot(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createVpsSnapshotResponse{
+		_ = json.NewEncoder(w).Encode(createVpsSnapshotResponse{
 			Message: "Snapshot created",
 			Snapshot: VpsSnapshot{
 				ID:            "snap-123",
@@ -71,7 +71,7 @@ func TestClient_ListVpsSnapshots(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(listVpsSnapshotsResponse{
+		_ = json.NewEncoder(w).Encode(listVpsSnapshotsResponse{
 			Data: []VpsSnapshot{
 				{
 					ID:     "snap-1",
@@ -107,7 +107,7 @@ func TestClient_ListVpsSnapshots(t *testing.T) {
 func TestClient_GetVpsSnapshot(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(listVpsSnapshotsResponse{
+		_ = json.NewEncoder(w).Encode(listVpsSnapshotsResponse{
 			Data: []VpsSnapshot{
 				{
 					ID:     "snap-123",
@@ -142,7 +142,7 @@ func TestClient_GetVpsSnapshot(t *testing.T) {
 func TestClient_GetVpsSnapshot_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(listVpsSnapshotsResponse{
+		_ = json.NewEncoder(w).Encode(listVpsSnapshotsResponse{
 			Data: []VpsSnapshot{},
 			Pagination: Pagination{
 				CurrentPage: 1,
@@ -218,7 +218,7 @@ func TestClient_CreateCacheSnapshot(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createCacheSnapshotResponse{
+		_ = json.NewEncoder(w).Encode(createCacheSnapshotResponse{
 			Message: "Snapshot created",
 			Snapshot: CacheSnapshot{
 				ID:              "csnap-123",
@@ -251,7 +251,7 @@ func TestClient_ListCacheSnapshots(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(listCacheSnapshotsResponse{
+		_ = json.NewEncoder(w).Encode(listCacheSnapshotsResponse{
 			Data: []CacheSnapshot{
 				{ID: "csnap-1", Name: "snapshot-one"},
 				{ID: "csnap-2", Name: "snapshot-two"},
@@ -304,7 +304,7 @@ func TestClient_CreateDatabaseSnapshot(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createDatabaseSnapshotResponse{
+		_ = json.NewEncoder(w).Encode(createDatabaseSnapshotResponse{
 			Message: "Snapshot created",
 			Snapshot: DatabaseSnapshot{
 				ID:                 "dbsnap-123",
@@ -337,7 +337,7 @@ func TestClient_ListDatabaseSnapshots(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(listDatabaseSnapshotsResponse{
+		_ = json.NewEncoder(w).Encode(listDatabaseSnapshotsResponse{
 			Data: []DatabaseSnapshot{
 				{ID: "dbsnap-1", Name: "snapshot-one"},
 			},

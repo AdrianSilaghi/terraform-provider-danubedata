@@ -33,7 +33,7 @@ func TestClient_CreateStorageBucket(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createStorageBucketResponse{
+		_ = json.NewEncoder(w).Encode(createStorageBucketResponse{
 			Message: "Bucket created",
 			Bucket: StorageBucket{
 				ID:                "bucket-123",
@@ -79,7 +79,7 @@ func TestClient_GetStorageBucket(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showStorageBucketResponse{
+		_ = json.NewEncoder(w).Encode(showStorageBucketResponse{
 			Bucket: StorageBucket{
 				ID:                "bucket-123",
 				Name:              "my-bucket",
@@ -148,7 +148,7 @@ func TestClient_UpdateStorageBucket(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(updateStorageBucketResponse{
+		_ = json.NewEncoder(w).Encode(updateStorageBucketResponse{
 			Message: "Bucket updated",
 			Bucket: StorageBucket{
 				ID:           "bucket-123",
@@ -214,7 +214,7 @@ func TestClient_CreateStorageAccessKey(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(CreateStorageAccessKeyResponse{
+		_ = json.NewEncoder(w).Encode(CreateStorageAccessKeyResponse{
 			ID:              "key-123",
 			Name:            "my-key",
 			AccessKeyID:     "AKIAIOSFODNN7EXAMPLE",
@@ -253,7 +253,7 @@ func TestClient_GetStorageAccessKey(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(struct {
+		_ = json.NewEncoder(w).Encode(struct {
 			AccessKey StorageAccessKey `json:"access_key"`
 		}{
 			AccessKey: StorageAccessKey{

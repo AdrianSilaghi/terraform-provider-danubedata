@@ -37,7 +37,7 @@ func TestClient_CreateDatabase(t *testing.T) {
 		username := "admin"
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(createDatabaseResponse{
+		_ = json.NewEncoder(w).Encode(createDatabaseResponse{
 			Message: "Database instance created",
 			Instance: DatabaseInstance{
 				ID:              "db-123",
@@ -96,7 +96,7 @@ func TestClient_GetDatabase(t *testing.T) {
 		endpoint := "my-database.mysql.cluster.local"
 		port := 3306
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(showDatabaseResponse{
+		_ = json.NewEncoder(w).Encode(showDatabaseResponse{
 			Instance: DatabaseInstance{
 				ID:            "db-123",
 				Name:          "my-database",
@@ -167,7 +167,7 @@ func TestClient_UpdateDatabase(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(updateDatabaseResponse{
+		_ = json.NewEncoder(w).Encode(updateDatabaseResponse{
 			Message: "Database instance updated",
 			Instance: DatabaseInstance{
 				ID:            "db-123",
@@ -266,7 +266,7 @@ func TestClient_GetDatabaseCredentials(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(DatabaseCredentials{
+		_ = json.NewEncoder(w).Encode(DatabaseCredentials{
 			ConnectionInfo: "mysql://admin@my-database.mysql.cluster.local:3306/mydb",
 			Username:       "admin",
 			Password:       "secret-password",
