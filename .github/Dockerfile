@@ -29,7 +29,8 @@ RUN curl -sSfL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/ter
 # Set up Go environment
 ENV GOPATH=/go
 ENV PATH="${GOPATH}/bin:${PATH}"
-ENV CGO_ENABLED=0
+# CGO enabled for race detector support
+ENV CGO_ENABLED=1
 
 # Create workspace directory
 WORKDIR /workspace
