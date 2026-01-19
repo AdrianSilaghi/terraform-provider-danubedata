@@ -33,7 +33,7 @@ func TestClient_CreateSshKey(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(createSshKeyResponse{
 			Message: "SSH key created",
 			Key: SshKey{
-				ID:          "key-123",
+				ID:          123,
 				Name:        "my-key",
 				Fingerprint: "SHA256:abc123",
 				PublicKey:   "ssh-ed25519 AAAAC3NzaC1...",
@@ -51,8 +51,8 @@ func TestClient_CreateSshKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if key.ID != "key-123" {
-		t.Errorf("ID = %v, want key-123", key.ID)
+	if key.ID != 123 {
+		t.Errorf("ID = %v, want 123", key.ID)
 	}
 	if key.Name != "my-key" {
 		t.Errorf("Name = %v, want my-key", key.Name)
@@ -67,14 +67,14 @@ func TestClient_GetSshKey(t *testing.T) {
 		if r.Method != "GET" {
 			t.Errorf("Method = %v, want GET", r.Method)
 		}
-		if r.URL.Path != "/ssh-keys/key-123" {
-			t.Errorf("Path = %v, want /ssh-keys/key-123", r.URL.Path)
+		if r.URL.Path != "/ssh-keys/123" {
+			t.Errorf("Path = %v, want /ssh-keys/123", r.URL.Path)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(showSshKeyResponse{
 			Key: SshKey{
-				ID:          "key-123",
+				ID:          123,
 				Name:        "my-key",
 				Fingerprint: "SHA256:abc123",
 				PublicKey:   "ssh-ed25519 AAAAC3NzaC1...",
@@ -85,13 +85,13 @@ func TestClient_GetSshKey(t *testing.T) {
 	defer server.Close()
 
 	c := newTestClient(server)
-	key, err := c.GetSshKey(context.Background(), "key-123")
+	key, err := c.GetSshKey(context.Background(), "123")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if key.ID != "key-123" {
-		t.Errorf("ID = %v, want key-123", key.ID)
+	if key.ID != 123 {
+		t.Errorf("ID = %v, want 123", key.ID)
 	}
 	if key.Fingerprint != "SHA256:abc123" {
 		t.Errorf("Fingerprint = %v, want SHA256:abc123", key.Fingerprint)
@@ -129,12 +129,12 @@ func TestClient_ListSshKeys(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(listSshKeysResponse{
 			Data: []SshKey{
 				{
-					ID:          "key-1",
+					ID:          1,
 					Name:        "key-one",
 					Fingerprint: "SHA256:aaa",
 				},
 				{
-					ID:          "key-2",
+					ID:          2,
 					Name:        "key-two",
 					Fingerprint: "SHA256:bbb",
 				},
@@ -158,8 +158,8 @@ func TestClient_ListSshKeys(t *testing.T) {
 	if len(keys) != 2 {
 		t.Fatalf("got %d keys, want 2", len(keys))
 	}
-	if keys[0].ID != "key-1" {
-		t.Errorf("keys[0].ID = %v, want key-1", keys[0].ID)
+	if keys[0].ID != 1 {
+		t.Errorf("keys[0].ID = %v, want 1", keys[0].ID)
 	}
 	if keys[1].Name != "key-two" {
 		t.Errorf("keys[1].Name = %v, want key-two", keys[1].Name)
@@ -171,8 +171,8 @@ func TestClient_DeleteSshKey(t *testing.T) {
 		if r.Method != "DELETE" {
 			t.Errorf("Method = %v, want DELETE", r.Method)
 		}
-		if r.URL.Path != "/ssh-keys/key-123" {
-			t.Errorf("Path = %v, want /ssh-keys/key-123", r.URL.Path)
+		if r.URL.Path != "/ssh-keys/123" {
+			t.Errorf("Path = %v, want /ssh-keys/123", r.URL.Path)
 		}
 
 		w.WriteHeader(http.StatusNoContent)
@@ -180,7 +180,7 @@ func TestClient_DeleteSshKey(t *testing.T) {
 	defer server.Close()
 
 	c := newTestClient(server)
-	err := c.DeleteSshKey(context.Background(), "key-123")
+	err := c.DeleteSshKey(context.Background(), "123")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
