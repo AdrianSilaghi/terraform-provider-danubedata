@@ -24,8 +24,8 @@ func TestClient_CreateCache(t *testing.T) {
 		if req.Name != "my-cache" {
 			t.Errorf("Name = %v, want my-cache", req.Name)
 		}
-		if req.CacheProviderID != 1 {
-			t.Errorf("CacheProviderID = %v, want 1", req.CacheProviderID)
+		if req.Provider != "redis" {
+			t.Errorf("Provider = %v, want redis", req.Provider)
 		}
 
 		endpoint := "my-cache.redis.cluster.local"
@@ -41,6 +41,7 @@ func TestClient_CreateCache(t *testing.T) {
 				ResourceProfile: "standard",
 				CPUCores:        1,
 				MemorySizeMB:    512,
+				Provider:        CacheProvider{ID: 1, Name: "redis"},
 				Endpoint:        &endpoint,
 				Port:            &port,
 			},
@@ -51,10 +52,10 @@ func TestClient_CreateCache(t *testing.T) {
 	c := newTestClient(server)
 	cache, err := c.CreateCache(context.Background(), CreateCacheRequest{
 		Name:              "my-cache",
-		CacheProviderID:   1,
+		Provider:          "redis",
 		MemorySizeMB:      512,
 		CPUCores:          1,
-		HetznerDatacenter: "fsn1",
+		Datacenter:        "fsn1",
 		ResourceProfile:   "standard",
 	})
 
@@ -89,6 +90,7 @@ func TestClient_GetCache(t *testing.T) {
 				CPUCores:     2,
 				MemorySizeMB: 1024,
 				Version:      "7.2",
+				Provider:     CacheProvider{ID: 1, Name: "redis"},
 				Endpoint:     &endpoint,
 				Port:         &port,
 			},
@@ -157,6 +159,7 @@ func TestClient_UpdateCache(t *testing.T) {
 				ID:           "cache-123",
 				Name:         "my-cache",
 				MemorySizeMB: 2048,
+				Provider:     CacheProvider{ID: 1, Name: "redis"},
 			},
 		})
 	})

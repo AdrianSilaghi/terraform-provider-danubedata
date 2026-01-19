@@ -4,17 +4,15 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
-	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -36,13 +34,13 @@ type CacheResourceModel struct {
 	ID               types.String   `tfsdk:"id"`
 	Name             types.String   `tfsdk:"name"`
 	Status           types.String   `tfsdk:"status"`
-	CacheProviderID  types.Int64    `tfsdk:"cache_provider_id"`
-	ProviderType     types.String   `tfsdk:"provider_type"`
+	CacheProvider    types.String   `tfsdk:"cache_provider"`
 	ResourceProfile  types.String   `tfsdk:"resource_profile"`
 	MemorySizeMB     types.Int64    `tfsdk:"memory_size_mb"`
 	CPUCores         types.Int64    `tfsdk:"cpu_cores"`
 	Version          types.String   `tfsdk:"version"`
 	Datacenter       types.String   `tfsdk:"datacenter"`
+	ParameterGroupID types.String   `tfsdk:"parameter_group_id"`
 	Endpoint         types.String   `tfsdk:"endpoint"`
 	Port             types.Int64    `tfsdk:"port"`
 	MonthlyCostCents types.Int64    `tfsdk:"monthly_cost_cents"`
@@ -87,19 +85,15 @@ func (r *CacheResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Description: "Current status of the cache instance (pending, provisioning, running, stopped, error).",
 				Computed:    true,
 			},
-			"cache_provider_id": schema.Int64Attribute{
-				Description: "ID of the cache provider (1=Redis, 2=Valkey, 3=Dragonfly).",
+			"cache_provider": schema.StringAttribute{
+				Description: "Cache provider type (redis, valkey, dragonfly).",
 				Required:    true,
-				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 				},
-				Validators: []validator.Int64{
-					int64validator.Between(1, 3),
+				Validators: []validator.String{
+					stringvalidator.OneOf("redis", "valkey", "dragonfly"),
 				},
-			},
-			"provider_type": schema.StringAttribute{
-				Description: "Type of cache provider (redis, valkey, dragonfly). Computed from cache_provider_id.",
-				Computed:    true,
 			},
 			"resource_profile": schema.StringAttribute{
 				Description: "Resource profile for the cache (micro, small, medium, large).",
@@ -109,22 +103,14 @@ func (r *CacheResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				},
 			},
 			"memory_size_mb": schema.Int64Attribute{
-				Description: "Memory size in MB (128-32768).",
+				Description: "Memory size in MB. If not specified, determined by resource_profile.",
 				Optional:    true,
 				Computed:    true,
-				Default:     int64default.StaticInt64(512),
-				Validators: []validator.Int64{
-					int64validator.Between(128, 32768),
-				},
 			},
 			"cpu_cores": schema.Int64Attribute{
-				Description: "Number of CPU cores (1-16).",
+				Description: "Number of CPU cores. If not specified, determined by resource_profile.",
 				Optional:    true,
 				Computed:    true,
-				Default:     int64default.StaticInt64(1),
-				Validators: []validator.Int64{
-					int64validator.Between(1, 16),
-				},
 			},
 			"version": schema.StringAttribute{
 				Description: "Version of the cache software.",
@@ -140,6 +126,10 @@ func (r *CacheResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Validators: []validator.String{
 					stringvalidator.OneOf("fsn1", "nbg1", "hel1", "ash"),
 				},
+			},
+			"parameter_group_id": schema.StringAttribute{
+				Description: "ID of the parameter group to use for custom configuration.",
+				Optional:    true,
 			},
 			"endpoint": schema.StringAttribute{
 				Description: "Connection endpoint for the cache instance.",
@@ -217,10 +207,10 @@ func (r *CacheResource) Create(ctx context.Context, req resource.CreateRequest, 
 	// Build create request
 	createReq := client.CreateCacheRequest{
 		Name:              data.Name.ValueString(),
-		CacheProviderID:   int(data.CacheProviderID.ValueInt64()),
+		Provider:          data.CacheProvider.ValueString(),
 		MemorySizeMB:      int(data.MemorySizeMB.ValueInt64()),
 		CPUCores:          int(data.CPUCores.ValueInt64()),
-		HetznerDatacenter: data.Datacenter.ValueString(),
+		Datacenter:        data.Datacenter.ValueString(),
 		ResourceProfile:   data.ResourceProfile.ValueString(),
 	}
 
@@ -228,8 +218,14 @@ func (r *CacheResource) Create(ctx context.Context, req resource.CreateRequest, 
 		createReq.Version = data.Version.ValueString()
 	}
 
+	if !data.ParameterGroupID.IsNull() && !data.ParameterGroupID.IsUnknown() {
+		paramGroupID := data.ParameterGroupID.ValueString()
+		createReq.ParameterGroupID = &paramGroupID
+	}
+
 	tflog.Debug(ctx, "Creating cache instance", map[string]interface{}{
-		"name": data.Name.ValueString(),
+		"name":           data.Name.ValueString(),
+		"cache_provider": data.CacheProvider.ValueString(),
 	})
 
 	// Create cache instance
@@ -339,6 +335,14 @@ func (r *CacheResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		hasChanges = true
 	}
 
+	if !data.ParameterGroupID.Equal(state.ParameterGroupID) {
+		if !data.ParameterGroupID.IsNull() {
+			paramGroupID := data.ParameterGroupID.ValueString()
+			updateReq.ParameterGroupID = &paramGroupID
+		}
+		hasChanges = true
+	}
+
 	if hasChanges {
 		tflog.Debug(ctx, "Updating cache instance", map[string]interface{}{
 			"id": data.ID.ValueString(),
@@ -350,22 +354,10 @@ func (r *CacheResource) Update(ctx context.Context, req resource.UpdateRequest, 
 			return
 		}
 
-		// Wait for cache to be running again after update
-		err = r.client.WaitForCacheStatus(ctx, cache.ID, "running", updateTimeout)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Cache instance failed to reach running state after update",
-				fmt.Sprintf("Cache %s did not reach running state: %s", cache.ID, err),
-			)
-			return
-		}
-
-		// Refresh state
-		cache, err = r.client.GetCache(ctx, cache.ID)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to read cache instance after update", err.Error())
-			return
-		}
+		// Note: We don't wait for running status here because the backend
+		// processes updates asynchronously via a job that sets status to "pending".
+		// The status will return to "running" after ArgoCD deploys the changes.
+		// Waiting here would cause a timeout since the API returns before the job runs.
 
 		r.mapCacheToState(cache, &data)
 	}
@@ -396,7 +388,7 @@ func (r *CacheResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		"id": cacheID,
 	})
 
-	// Check current status - cache must be stopped before deletion (similar to VPS)
+	// Check current status - cache must be stopped before deletion
 	cache, err := r.client.GetCache(ctx, cacheID)
 	if err != nil {
 		if client.IsNotFound(err) {
@@ -406,10 +398,45 @@ func (r *CacheResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		return
 	}
 
-	// If running, stop it first
-	if cache.Status == "running" {
-		tflog.Info(ctx, "Cache is running, stopping before deletion", map[string]interface{}{
-			"id": cacheID,
+	status := strings.ToLower(cache.Status)
+
+	// If cache is in a transitional state (pending, provisioning, restoring),
+	// wait for it to reach a stable state before attempting to stop/delete
+	if status == "pending" || status == "provisioning" || status == "restoring" {
+		tflog.Info(ctx, "Waiting for cache to reach stable state before deletion", map[string]interface{}{
+			"id":     cacheID,
+			"status": cache.Status,
+		})
+
+		err = r.client.WaitForCacheStatus(ctx, cacheID, "running", deleteTimeout)
+		if err != nil {
+			// If we timeout waiting for running, check if it went to error state
+			cache, getErr := r.client.GetCache(ctx, cacheID)
+			if getErr != nil {
+				if client.IsNotFound(getErr) {
+					return
+				}
+				resp.Diagnostics.AddError("Failed to get cache status", getErr.Error())
+				return
+			}
+			status = strings.ToLower(cache.Status)
+			if status != "error" && status != "stopped" {
+				resp.Diagnostics.AddError(
+					"Cache instance failed to reach stable state",
+					fmt.Sprintf("Cache %s is in state %s, cannot delete", cacheID, cache.Status),
+				)
+				return
+			}
+		} else {
+			status = "running"
+		}
+	}
+
+	// Stop the cache if it's not already stopped
+	if status != "stopped" && status != "deleted" && status != "error" {
+		tflog.Info(ctx, "Stopping cache before deletion", map[string]interface{}{
+			"id":     cacheID,
+			"status": status,
 		})
 
 		err = r.client.StopCache(ctx, cacheID)
@@ -458,7 +485,7 @@ func (r *CacheResource) mapCacheToState(cache *client.CacheInstance, data *Cache
 	data.ID = types.StringValue(cache.ID)
 	data.Name = types.StringValue(cache.Name)
 	data.Status = types.StringValue(cache.Status)
-	data.CacheProviderID = types.Int64Value(int64(cache.ProviderID))
+	data.CacheProvider = types.StringValue(strings.ToLower(cache.Provider.Name))
 	data.ResourceProfile = types.StringValue(cache.ResourceProfile)
 	data.MemorySizeMB = types.Int64Value(int64(cache.MemorySizeMB))
 	data.CPUCores = types.Int64Value(int64(cache.CPUCores))
@@ -478,30 +505,13 @@ func (r *CacheResource) mapCacheToState(cache *client.CacheInstance, data *Cache
 		data.Version = types.StringNull()
 	}
 
-	// Map provider type from the loaded provider info
-	if cache.Provider != nil {
-		data.ProviderType = types.StringValue(cache.Provider.Type)
-	} else {
-		// Fallback based on provider ID
-		switch cache.ProviderID {
-		case 1:
-			data.ProviderType = types.StringValue("redis")
-		case 2:
-			data.ProviderType = types.StringValue("valkey")
-		case 3:
-			data.ProviderType = types.StringValue("dragonfly")
-		default:
-			data.ProviderType = types.StringNull()
-		}
-	}
-
-	if cache.Endpoint != nil {
+	if cache.Endpoint != nil && *cache.Endpoint != "" {
 		data.Endpoint = types.StringValue(*cache.Endpoint)
 	} else {
 		data.Endpoint = types.StringNull()
 	}
 
-	if cache.Port != nil {
+	if cache.Port != nil && *cache.Port != 0 {
 		data.Port = types.Int64Value(int64(*cache.Port))
 	} else {
 		data.Port = types.Int64Null()
@@ -511,5 +521,11 @@ func (r *CacheResource) mapCacheToState(cache *client.CacheInstance, data *Cache
 		data.DeployedAt = types.StringValue(*cache.DeployedAt)
 	} else {
 		data.DeployedAt = types.StringNull()
+	}
+
+	if cache.ParameterGroupID != nil && *cache.ParameterGroupID != "" {
+		data.ParameterGroupID = types.StringValue(*cache.ParameterGroupID)
+	} else {
+		data.ParameterGroupID = types.StringNull()
 	}
 }

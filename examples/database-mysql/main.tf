@@ -12,18 +12,11 @@ terraform {
 
 provider "danubedata" {}
 
-# Look up the MySQL provider
-data "danubedata_database_providers" "all" {}
-
-locals {
-  mysql_provider = [for p in data.danubedata_database_providers.all.providers : p if p.name == "MySQL"][0]
-}
-
 # Create a MySQL database instance
 resource "danubedata_database" "main" {
   name            = "app-database"
   database_name   = "myapp"
-  provider_id     = local.mysql_provider.id
+  engine          = "mysql"
   version         = "8.0"
   storage_size_gb = 20
   memory_size_mb  = 2048

@@ -21,10 +21,9 @@ func TestAccCacheResource_basic(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_cache.test", "name", name),
 					resource.TestCheckResourceAttr("danubedata_cache.test", "datacenter", "fsn1"),
+					resource.TestCheckResourceAttr("danubedata_cache.test", "cache_provider", "redis"),
 					resource.TestCheckResourceAttrSet("danubedata_cache.test", "id"),
 					resource.TestCheckResourceAttrSet("danubedata_cache.test", "status"),
-					resource.TestCheckResourceAttrSet("danubedata_cache.test", "endpoint"),
-					resource.TestCheckResourceAttrSet("danubedata_cache.test", "port"),
 				),
 			},
 			// Import
@@ -48,7 +47,7 @@ func TestAccCacheResource_redis(t *testing.T) {
 				Config: testAccCacheResourceConfig_redis(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_cache.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_cache.test", "provider_id", "1"), // Redis
+					resource.TestCheckResourceAttr("danubedata_cache.test", "cache_provider", "redis"),
 					resource.TestCheckResourceAttr("danubedata_cache.test", "memory_size_mb", "512"),
 				),
 			},
@@ -67,7 +66,7 @@ func TestAccCacheResource_valkey(t *testing.T) {
 				Config: testAccCacheResourceConfig_valkey(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_cache.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_cache.test", "provider_id", "2"), // Valkey
+					resource.TestCheckResourceAttr("danubedata_cache.test", "cache_provider", "valkey"),
 				),
 			},
 		},
@@ -82,18 +81,20 @@ func TestAccCacheResource_update(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCacheResourceConfig_withResources(name, 512, 1),
+				Config: testAccCacheResourceConfig_withProfile(name, "micro"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_cache.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_cache.test", "memory_size_mb", "512"),
-					resource.TestCheckResourceAttr("danubedata_cache.test", "cpu_cores", "1"),
+					resource.TestCheckResourceAttr("danubedata_cache.test", "resource_profile", "micro"),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "memory_size_mb"),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "cpu_cores"),
 				),
 			},
 			{
-				Config: testAccCacheResourceConfig_withResources(name, 1024, 2),
+				Config: testAccCacheResourceConfig_withProfile(name, "small"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("danubedata_cache.test", "memory_size_mb", "1024"),
-					resource.TestCheckResourceAttr("danubedata_cache.test", "cpu_cores", "2"),
+					resource.TestCheckResourceAttr("danubedata_cache.test", "resource_profile", "small"),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "memory_size_mb"),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "cpu_cores"),
 				),
 			},
 		},
@@ -105,11 +106,12 @@ func testAccCacheResourceConfig_basic(name string) string {
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_cache" "test" {
-  name           = %q
-  provider_id    = 1  # Redis
-  memory_size_mb = 512
-  cpu_cores      = 1
-  datacenter     = "fsn1"
+  name             = %q
+  cache_provider   = "redis"
+  resource_profile = "micro"
+  memory_size_mb   = 256
+  cpu_cores        = 1
+  datacenter       = "fsn1"
 
   timeouts {
     create = "10m"
@@ -125,12 +127,13 @@ func testAccCacheResourceConfig_redis(name string) string {
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_cache" "test" {
-  name           = %q
-  provider_id    = 1  # Redis
-  memory_size_mb = 512
-  cpu_cores      = 1
-  datacenter     = "fsn1"
-  version        = "7.2"
+  name             = %q
+  cache_provider   = "redis"
+  resource_profile = "micro"
+  memory_size_mb   = 256
+  cpu_cores        = 1
+  datacenter       = "fsn1"
+  version          = "7.2"
 
   timeouts {
     create = "10m"
@@ -146,11 +149,12 @@ func testAccCacheResourceConfig_valkey(name string) string {
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_cache" "test" {
-  name           = %q
-  provider_id    = 2  # Valkey
-  memory_size_mb = 512
-  cpu_cores      = 1
-  datacenter     = "fsn1"
+  name             = %q
+  cache_provider   = "valkey"
+  resource_profile = "micro"
+  memory_size_mb   = 256
+  cpu_cores        = 1
+  datacenter       = "fsn1"
 
   timeouts {
     create = "10m"
@@ -161,16 +165,15 @@ resource "danubedata_cache" "test" {
 	)
 }
 
-func testAccCacheResourceConfig_withResources(name string, memoryMB, cpuCores int) string {
+func testAccCacheResourceConfig_withProfile(name string, resourceProfile string) string {
 	return acctest.ConfigCompose(
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_cache" "test" {
-  name           = %q
-  provider_id    = 1  # Redis
-  memory_size_mb = %d
-  cpu_cores      = %d
-  datacenter     = "fsn1"
+  name             = %q
+  cache_provider   = "redis"
+  resource_profile = %q
+  datacenter       = "fsn1"
 
   timeouts {
     create = "10m"
@@ -178,6 +181,6 @@ resource "danubedata_cache" "test" {
     delete = "10m"
   }
 }
-`, name, memoryMB, cpuCores),
+`, name, resourceProfile),
 	)
 }

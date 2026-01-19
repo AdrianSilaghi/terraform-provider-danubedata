@@ -7,7 +7,7 @@ import (
 
 // SshKey represents an SSH key from the API
 type SshKey struct {
-	ID          string `json:"id"`
+	ID          int    `json:"id"`
 	Name        string `json:"name"`
 	Fingerprint string `json:"fingerprint"`
 	PublicKey   string `json:"public_key"`

@@ -23,11 +23,6 @@ variable "root_password" {
   sensitive   = true
 }
 
-# Data Sources
-data "danubedata_vps_images" "available" {}
-data "danubedata_cache_providers" "available" {}
-data "danubedata_database_providers" "available" {}
-
 # VPS Instance
 resource "danubedata_vps" "web" {
   name             = "${var.environment}-web-server"
@@ -46,12 +41,12 @@ resource "danubedata_vps" "web" {
 
 # Redis Cache for sessions
 resource "danubedata_cache" "sessions" {
-  name              = "${var.environment}-sessions"
-  cache_provider_id = 1 # Redis
-  resource_profile  = "small"
-  memory_size_mb    = 512
-  cpu_cores         = 1
-  datacenter        = "fsn1"
+  name             = "${var.environment}-sessions"
+  cache_provider   = "redis"
+  resource_profile = "small"
+  memory_size_mb   = 512
+  cpu_cores        = 1
+  datacenter       = "fsn1"
 
   timeouts {
     create = "15m"
@@ -61,14 +56,14 @@ resource "danubedata_cache" "sessions" {
 
 # PostgreSQL Database
 resource "danubedata_database" "main" {
-  name                 = "${var.environment}-database"
-  database_provider_id = 2 # PostgreSQL
-  database_name        = "app"
-  resource_profile     = "small"
-  storage_size_gb      = 20
-  memory_size_mb       = 2048
-  cpu_cores            = 2
-  datacenter           = "fsn1"
+  name             = "${var.environment}-database"
+  engine           = "postgresql"
+  database_name    = "app"
+  resource_profile = "small"
+  storage_size_gb  = 20
+  memory_size_mb   = 2048
+  cpu_cores        = 2
+  datacenter       = "fsn1"
 
   timeouts {
     create = "20m"

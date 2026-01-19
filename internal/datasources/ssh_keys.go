@@ -102,7 +102,7 @@ func (d *SshKeysDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	data.Keys = make([]SshKeyModel, len(keys))
 	for i, key := range keys {
 		data.Keys[i] = SshKeyModel{
-			ID:          types.StringValue(key.ID),
+			ID:          types.StringValue(fmt.Sprintf("%d", key.ID)),
 			Name:        types.StringValue(key.Name),
 			Fingerprint: types.StringValue(key.Fingerprint),
 			PublicKey:   types.StringValue(key.PublicKey),

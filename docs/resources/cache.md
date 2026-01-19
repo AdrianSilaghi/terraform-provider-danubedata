@@ -9,7 +9,7 @@ Manages an in-memory cache instance (Redis, Valkey, or Dragonfly).
 ```hcl
 resource "danubedata_cache" "redis" {
   name           = "my-redis"
-  provider_id    = 1  # Redis
+  cache_provider = "redis"
   memory_size_mb = 512
   cpu_cores      = 1
   datacenter     = "fsn1"
@@ -26,7 +26,7 @@ output "redis_endpoint" {
 ```hcl
 resource "danubedata_cache" "valkey" {
   name           = "my-valkey"
-  provider_id    = 2  # Valkey
+  cache_provider = "valkey"
   memory_size_mb = 1024
   cpu_cores      = 2
   datacenter     = "fsn1"
@@ -38,7 +38,7 @@ resource "danubedata_cache" "valkey" {
 ```hcl
 resource "danubedata_cache" "dragonfly" {
   name           = "my-dragonfly"
-  provider_id    = 3  # Dragonfly
+  cache_provider = "dragonfly"
   memory_size_mb = 2048
   cpu_cores      = 4
   datacenter     = "fsn1"
@@ -50,7 +50,7 @@ resource "danubedata_cache" "dragonfly" {
 ```hcl
 resource "danubedata_cache" "standard" {
   name             = "standard-cache"
-  provider_id      = 1
+  provider         = "redis"
   resource_profile = "cache-medium"
   datacenter       = "fsn1"
 }
@@ -61,10 +61,10 @@ resource "danubedata_cache" "standard" {
 ### Required
 
 * `name` - (Required) Name of the cache instance.
-* `provider_id` - (Required) Cache provider ID:
-  - `1` - Redis
-  - `2` - Valkey
-  - `3` - Dragonfly
+* `cache_provider` - (Required) Cache provider type. Valid values:
+  - `redis` - Redis
+  - `valkey` - Valkey (Redis fork)
+  - `dragonfly` - Dragonfly (high-performance Redis alternative)
 * `datacenter` - (Required) Datacenter location (e.g., `fsn1`).
 
 ### Optional

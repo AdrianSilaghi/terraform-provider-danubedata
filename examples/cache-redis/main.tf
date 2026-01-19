@@ -12,17 +12,10 @@ terraform {
 
 provider "danubedata" {}
 
-# Look up the Redis provider
-data "danubedata_cache_providers" "all" {}
-
-locals {
-  redis_provider = [for p in data.danubedata_cache_providers.all.providers : p if p.name == "Redis"][0]
-}
-
 # Create a Redis cache instance
 resource "danubedata_cache" "main" {
   name           = "app-cache"
-  provider_id    = local.redis_provider.id
+  cache_provider = "redis"
   memory_size_mb = 512
   cpu_cores      = 1
   datacenter     = "fsn1"

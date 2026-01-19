@@ -2,8 +2,11 @@
 package acctest
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
-	"math/rand/v2"
+	rand2 "math/rand/v2"
 	"os"
 	"strings"
 	"testing"
@@ -11,6 +14,7 @@ import (
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"golang.org/x/crypto/ssh"
 )
 
 // ProtoV6ProviderFactories returns the provider factories for acceptance tests
@@ -35,7 +39,7 @@ func RandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, length)
 	for i := range b {
-		b[i] = charset[rand.IntN(len(charset))]
+		b[i] = charset[rand2.IntN(len(charset))]
 	}
 	return string(b)
 }
@@ -43,13 +47,27 @@ func RandomString(length int) string {
 // RandomPassword generates a random password meeting minimum requirements
 func RandomPassword() string {
 	// At least 12 characters with upper, lower, number, and special
-	return fmt.Sprintf("Test%s!@#%d", RandomString(8), rand.IntN(1000))
+	return fmt.Sprintf("Test%s!@#%d", RandomString(8), rand2.IntN(1000))
 }
 
-// RandomSSHPublicKey generates a fake SSH public key for testing
-// Note: This is NOT a valid key, just for testing API calls
+// RandomSSHPublicKey generates a valid SSH ed25519 public key for testing
 func RandomSSHPublicKey() string {
-	return fmt.Sprintf("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI%s test@example.com", RandomString(44))
+	// Generate a real ed25519 key pair
+	pubKey, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		// Fallback to a known valid test key if generation fails
+		return "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl test@example.com"
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(pubKey)
+	if err != nil {
+		return "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl test@example.com"
+	}
+
+	// Format as OpenSSH public key
+	keyType := sshPubKey.Type()
+	keyData := base64.StdEncoding.EncodeToString(sshPubKey.Marshal())
+	return fmt.Sprintf("%s %s test@example.com", keyType, keyData)
 }
 
 // ProviderConfig returns the provider configuration block

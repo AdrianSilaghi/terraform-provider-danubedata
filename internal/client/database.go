@@ -3,59 +3,62 @@ package client
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
+// DatabaseEngine represents the engine object in database instance response
+type DatabaseEngine struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 // DatabaseInstance represents a database instance from the API
 type DatabaseInstance struct {
-	ID                 string    `json:"id"`
-	Name               string    `json:"name"`
-	Status             string    `json:"status"`
-	StatusLabel        string    `json:"status_label"`
-	ResourceProfile    string    `json:"resource_profile"`
-	CPUCores           int       `json:"cpu_cores"`
-	MemorySizeMB       int       `json:"memory_size_mb"`
-	StorageSizeGB      int       `json:"storage_size_gb"`
-	DatabaseName       *string   `json:"database_name"`
-	Version            string    `json:"version"`
-	ProviderID         int       `json:"provider_id"`
-	Provider           *Provider `json:"provider,omitempty"`
-	Datacenter         string    `json:"hetzner_datacenter"`
-	Endpoint           *string   `json:"endpoint"`
-	Port               *int      `json:"port"`
-	Username           *string   `json:"username"`
-	MonthlyCostCents   int       `json:"monthly_cost_cents"`
-	MonthlyCostDollars float64   `json:"monthly_cost_dollars"`
-	DeployedAt         *string   `json:"deployed_at"`
-	CreatedAt          string    `json:"created_at"`
-	UpdatedAt          string    `json:"updated_at"`
-	TeamID             int       `json:"team_id"`
-	UserID             int       `json:"user_id"`
-	CanBeStarted       bool      `json:"can_be_started"`
-	CanBeStopped       bool      `json:"can_be_stopped"`
-	CanBeDestroyed     bool      `json:"can_be_destroyed"`
+	ID                 string         `json:"id"`
+	Name               string         `json:"name"`
+	Status             string         `json:"status"`
+	StatusLabel        string         `json:"status_label"`
+	ResourceProfile    string         `json:"resource_profile"`
+	CPUCores           int            `json:"cpu_cores"`
+	MemorySizeMB       int            `json:"memory_size_mb"`
+	StorageSizeGB      int            `json:"storage_size_gb"`
+	DatabaseName       *string        `json:"database_name"`
+	Version            string         `json:"version"`
+	Engine             DatabaseEngine `json:"engine"`
+	Datacenter         string         `json:"datacenter"`
+	Endpoint           *string        `json:"endpoint"`
+	Port               *int           `json:"port"`
+	Username           *string        `json:"username"`
+	ParameterGroupID   *string        `json:"parameter_group_id"`
+	MonthlyCostCents   int            `json:"monthly_cost_cents"`
+	MonthlyCostDollars float64        `json:"monthly_cost_dollars"`
+	DeployedAt         *string        `json:"deployed_at"`
+	CreatedAt          string         `json:"created_at"`
+	UpdatedAt          string         `json:"updated_at"`
+	TeamID             int            `json:"team_id"`
+	UserID             int            `json:"user_id"`
+	CanBeStarted       bool           `json:"can_be_started"`
+	CanBeStopped       bool           `json:"can_be_stopped"`
+	CanBeDestroyed     bool           `json:"can_be_destroyed"`
 }
 
 // CreateDatabaseRequest represents a request to create a database instance
 type CreateDatabaseRequest struct {
-	Name               string `json:"name"`
-	DatabaseProviderID int    `json:"database_provider_id"`
-	DatabaseName       string `json:"database_name,omitempty"`
-	StorageSizeGB      int    `json:"storage_size_gb"`
-	MemorySizeMB       int    `json:"memory_size_mb"`
-	CPUCores           int    `json:"cpu_cores"`
-	Version            string `json:"version,omitempty"`
-	HetznerDatacenter  string `json:"hetzner_datacenter"`
-	ResourceProfile    string `json:"resource_profile"`
+	Name             string  `json:"name"`
+	Provider         string  `json:"provider"` // mysql, postgresql, mariadb
+	DatabaseName     string  `json:"database_name,omitempty"`
+	Version          string  `json:"version,omitempty"`
+	Datacenter       string  `json:"datacenter"`
+	ResourceProfile  string  `json:"resource_profile"`
+	ParameterGroupID *string `json:"parameter_group_id,omitempty"`
 }
 
 // UpdateDatabaseRequest represents a request to update a database instance
 type UpdateDatabaseRequest struct {
-	Name            string `json:"name,omitempty"`
-	StorageSizeGB   *int   `json:"storage_size_gb,omitempty"`
-	MemorySizeMB    *int   `json:"memory_size_mb,omitempty"`
-	CPUCores        *int   `json:"cpu_cores,omitempty"`
-	ResourceProfile string `json:"resource_profile,omitempty"`
+	Name             string  `json:"name,omitempty"`
+	ResourceProfile  string  `json:"resource_profile,omitempty"`
+	ParameterGroupID *string `json:"parameter_group_id,omitempty"`
 }
 
 type createDatabaseResponse struct {
@@ -146,10 +149,11 @@ func (c *Client) WaitForDatabaseStatus(ctx context.Context, id string, targetSta
 		}
 		return fmt.Errorf("error checking database status: %w", err)
 	}
-	if instance.Status == targetStatus {
+	status := strings.ToLower(instance.Status)
+	if status == targetStatus {
 		return nil
 	}
-	if instance.Status == "error" {
+	if status == "error" {
 		return fmt.Errorf("database %s entered error state", id)
 	}
 
@@ -170,11 +174,12 @@ func (c *Client) WaitForDatabaseStatus(ctx context.Context, id string, targetSta
 				return fmt.Errorf("error checking database status: %w", err)
 			}
 
-			if instance.Status == targetStatus {
+			status := strings.ToLower(instance.Status)
+			if status == targetStatus {
 				return nil
 			}
 
-			if instance.Status == "error" {
+			if status == "error" {
 				return fmt.Errorf("database %s entered error state", id)
 			}
 		}

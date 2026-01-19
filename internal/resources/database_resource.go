@@ -4,17 +4,15 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
-	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -33,27 +31,27 @@ type DatabaseResource struct {
 }
 
 type DatabaseResourceModel struct {
-	ID                 types.String   `tfsdk:"id"`
-	Name               types.String   `tfsdk:"name"`
-	Status             types.String   `tfsdk:"status"`
-	DatabaseProviderID types.Int64    `tfsdk:"database_provider_id"`
-	ProviderType       types.String   `tfsdk:"provider_type"`
-	DatabaseName       types.String   `tfsdk:"database_name"`
-	ResourceProfile    types.String   `tfsdk:"resource_profile"`
-	StorageSizeGB      types.Int64    `tfsdk:"storage_size_gb"`
-	MemorySizeMB       types.Int64    `tfsdk:"memory_size_mb"`
-	CPUCores           types.Int64    `tfsdk:"cpu_cores"`
-	Version            types.String   `tfsdk:"version"`
-	Datacenter         types.String   `tfsdk:"datacenter"`
-	Endpoint           types.String   `tfsdk:"endpoint"`
-	Port               types.Int64    `tfsdk:"port"`
-	Username           types.String   `tfsdk:"username"`
-	MonthlyCostCents   types.Int64    `tfsdk:"monthly_cost_cents"`
-	MonthlyCost        types.Float64  `tfsdk:"monthly_cost"`
-	DeployedAt         types.String   `tfsdk:"deployed_at"`
-	CreatedAt          types.String   `tfsdk:"created_at"`
-	UpdatedAt          types.String   `tfsdk:"updated_at"`
-	Timeouts           timeouts.Value `tfsdk:"timeouts"`
+	ID               types.String   `tfsdk:"id"`
+	Name             types.String   `tfsdk:"name"`
+	Status           types.String   `tfsdk:"status"`
+	Engine           types.String   `tfsdk:"engine"`
+	DatabaseName     types.String   `tfsdk:"database_name"`
+	ResourceProfile  types.String   `tfsdk:"resource_profile"`
+	StorageSizeGB    types.Int64    `tfsdk:"storage_size_gb"`
+	MemorySizeMB     types.Int64    `tfsdk:"memory_size_mb"`
+	CPUCores         types.Int64    `tfsdk:"cpu_cores"`
+	Version          types.String   `tfsdk:"version"`
+	Datacenter       types.String   `tfsdk:"datacenter"`
+	ParameterGroupID types.String   `tfsdk:"parameter_group_id"`
+	Endpoint         types.String   `tfsdk:"endpoint"`
+	Port             types.Int64    `tfsdk:"port"`
+	Username         types.String   `tfsdk:"username"`
+	MonthlyCostCents types.Int64    `tfsdk:"monthly_cost_cents"`
+	MonthlyCost      types.Float64  `tfsdk:"monthly_cost"`
+	DeployedAt       types.String   `tfsdk:"deployed_at"`
+	CreatedAt        types.String   `tfsdk:"created_at"`
+	UpdatedAt        types.String   `tfsdk:"updated_at"`
+	Timeouts         timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewDatabaseResource() resource.Resource {
@@ -93,19 +91,15 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 				Description: "Current status of the database instance (pending, provisioning, running, stopped, error).",
 				Computed:    true,
 			},
-			"database_provider_id": schema.Int64Attribute{
-				Description: "ID of the database provider (1=MySQL, 2=PostgreSQL, 3=MariaDB).",
+			"engine": schema.StringAttribute{
+				Description: "Database engine (mysql, postgresql, mariadb).",
 				Required:    true,
-				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 				},
-				Validators: []validator.Int64{
-					int64validator.Between(1, 3),
+				Validators: []validator.String{
+					stringvalidator.OneOf("mysql", "postgresql", "mariadb"),
 				},
-			},
-			"provider_type": schema.StringAttribute{
-				Description: "Type of database provider (mysql, postgresql, mariadb). Computed from database_provider_id.",
-				Computed:    true,
 			},
 			"database_name": schema.StringAttribute{
 				Description: "Name of the initial database to create. Must start with a letter and contain only letters, numbers, and underscores.",
@@ -129,29 +123,16 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 				},
 			},
 			"storage_size_gb": schema.Int64Attribute{
-				Description: "Storage size in GB (10-500).",
-				Required:    true,
-				Validators: []validator.Int64{
-					int64validator.Between(10, 500),
-				},
+				Description: "Storage size in GB. Derived from resource_profile.",
+				Computed:    true,
 			},
 			"memory_size_mb": schema.Int64Attribute{
-				Description: "Memory size in MB (1024-32768).",
-				Optional:    true,
+				Description: "Memory size in MB. Derived from resource_profile.",
 				Computed:    true,
-				Default:     int64default.StaticInt64(2048),
-				Validators: []validator.Int64{
-					int64validator.Between(1024, 32768),
-				},
 			},
 			"cpu_cores": schema.Int64Attribute{
-				Description: "Number of CPU cores (1-16).",
-				Optional:    true,
+				Description: "Number of CPU cores. Derived from resource_profile.",
 				Computed:    true,
-				Default:     int64default.StaticInt64(2),
-				Validators: []validator.Int64{
-					int64validator.Between(1, 16),
-				},
 			},
 			"version": schema.StringAttribute{
 				Description: "Version of the database software.",
@@ -167,6 +148,10 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 				Validators: []validator.String{
 					stringvalidator.OneOf("fsn1", "nbg1", "hel1", "ash"),
 				},
+			},
+			"parameter_group_id": schema.StringAttribute{
+				Description: "ID of the parameter group to use for custom configuration.",
+				Optional:    true,
 			},
 			"endpoint": schema.StringAttribute{
 				Description: "Connection endpoint for the database instance.",
@@ -247,13 +232,10 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 
 	// Build create request
 	createReq := client.CreateDatabaseRequest{
-		Name:               data.Name.ValueString(),
-		DatabaseProviderID: int(data.DatabaseProviderID.ValueInt64()),
-		StorageSizeGB:      int(data.StorageSizeGB.ValueInt64()),
-		MemorySizeMB:       int(data.MemorySizeMB.ValueInt64()),
-		CPUCores:           int(data.CPUCores.ValueInt64()),
-		HetznerDatacenter:  data.Datacenter.ValueString(),
-		ResourceProfile:    data.ResourceProfile.ValueString(),
+		Name:            data.Name.ValueString(),
+		Provider:        data.Engine.ValueString(),
+		Datacenter:      data.Datacenter.ValueString(),
+		ResourceProfile: data.ResourceProfile.ValueString(),
 	}
 
 	if !data.DatabaseName.IsNull() && !data.DatabaseName.IsUnknown() {
@@ -264,8 +246,14 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		createReq.Version = data.Version.ValueString()
 	}
 
+	if !data.ParameterGroupID.IsNull() && !data.ParameterGroupID.IsUnknown() {
+		paramGroupID := data.ParameterGroupID.ValueString()
+		createReq.ParameterGroupID = &paramGroupID
+	}
+
 	tflog.Debug(ctx, "Creating database instance", map[string]interface{}{
-		"name": data.Name.ValueString(),
+		"name":   data.Name.ValueString(),
+		"engine": data.Engine.ValueString(),
 	})
 
 	// Create database instance
@@ -353,26 +341,16 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 	updateReq := client.UpdateDatabaseRequest{}
 	hasChanges := false
 
-	if !data.StorageSizeGB.Equal(state.StorageSizeGB) {
-		storageSize := int(data.StorageSizeGB.ValueInt64())
-		updateReq.StorageSizeGB = &storageSize
-		hasChanges = true
-	}
-
-	if !data.MemorySizeMB.Equal(state.MemorySizeMB) {
-		memSize := int(data.MemorySizeMB.ValueInt64())
-		updateReq.MemorySizeMB = &memSize
-		hasChanges = true
-	}
-
-	if !data.CPUCores.Equal(state.CPUCores) {
-		cpuCores := int(data.CPUCores.ValueInt64())
-		updateReq.CPUCores = &cpuCores
-		hasChanges = true
-	}
-
 	if !data.ResourceProfile.Equal(state.ResourceProfile) {
 		updateReq.ResourceProfile = data.ResourceProfile.ValueString()
+		hasChanges = true
+	}
+
+	if !data.ParameterGroupID.Equal(state.ParameterGroupID) {
+		if !data.ParameterGroupID.IsNull() {
+			paramGroupID := data.ParameterGroupID.ValueString()
+			updateReq.ParameterGroupID = &paramGroupID
+		}
 		hasChanges = true
 	}
 
@@ -387,22 +365,10 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 			return
 		}
 
-		// Wait for database to be running again after update
-		err = r.client.WaitForDatabaseStatus(ctx, database.ID, "running", updateTimeout)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Database instance failed to reach running state after update",
-				fmt.Sprintf("Database %s did not reach running state: %s", database.ID, err),
-			)
-			return
-		}
-
-		// Refresh state
-		database, err = r.client.GetDatabase(ctx, database.ID)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to read database instance after update", err.Error())
-			return
-		}
+		// Note: We don't wait for running status here because the backend
+		// processes updates asynchronously via a job that sets status to "pending".
+		// The status will return to "running" after ArgoCD deploys the changes.
+		// Waiting here would cause a timeout since the API returns before the job runs.
 
 		r.mapDatabaseToState(database, &data)
 	}
@@ -443,10 +409,45 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	// If running, stop it first
-	if database.Status == "running" {
-		tflog.Info(ctx, "Database is running, stopping before deletion", map[string]interface{}{
-			"id": databaseID,
+	status := strings.ToLower(database.Status)
+
+	// If database is in a transitional state (pending, provisioning, restoring),
+	// wait for it to reach a stable state before attempting to stop/delete
+	if status == "pending" || status == "provisioning" || status == "restoring" {
+		tflog.Info(ctx, "Waiting for database to reach stable state before deletion", map[string]interface{}{
+			"id":     databaseID,
+			"status": database.Status,
+		})
+
+		err = r.client.WaitForDatabaseStatus(ctx, databaseID, "running", deleteTimeout)
+		if err != nil {
+			// If we timeout waiting for running, check if it went to error state
+			database, getErr := r.client.GetDatabase(ctx, databaseID)
+			if getErr != nil {
+				if client.IsNotFound(getErr) {
+					return
+				}
+				resp.Diagnostics.AddError("Failed to get database status", getErr.Error())
+				return
+			}
+			status = strings.ToLower(database.Status)
+			if status != "error" && status != "stopped" {
+				resp.Diagnostics.AddError(
+					"Database instance failed to reach stable state",
+					fmt.Sprintf("Database %s is in state %s, cannot delete", databaseID, database.Status),
+				)
+				return
+			}
+		} else {
+			status = "running"
+		}
+	}
+
+	// Stop the database if it's not already stopped
+	if status != "stopped" && status != "deleted" && status != "error" {
+		tflog.Info(ctx, "Stopping database before deletion", map[string]interface{}{
+			"id":     databaseID,
+			"status": status,
 		})
 
 		err = r.client.StopDatabase(ctx, databaseID)
@@ -495,7 +496,7 @@ func (r *DatabaseResource) mapDatabaseToState(database *client.DatabaseInstance,
 	data.ID = types.StringValue(database.ID)
 	data.Name = types.StringValue(database.Name)
 	data.Status = types.StringValue(database.Status)
-	data.DatabaseProviderID = types.Int64Value(int64(database.ProviderID))
+	data.Engine = types.StringValue(strings.ToLower(database.Engine.Name))
 	data.ResourceProfile = types.StringValue(database.ResourceProfile)
 	data.StorageSizeGB = types.Int64Value(int64(database.StorageSizeGB))
 	data.MemorySizeMB = types.Int64Value(int64(database.MemorySizeMB))
@@ -521,23 +522,6 @@ func (r *DatabaseResource) mapDatabaseToState(database *client.DatabaseInstance,
 		data.Version = types.StringNull()
 	}
 
-	// Map provider type from the loaded provider info
-	if database.Provider != nil {
-		data.ProviderType = types.StringValue(database.Provider.Type)
-	} else {
-		// Fallback based on provider ID
-		switch database.ProviderID {
-		case 1:
-			data.ProviderType = types.StringValue("mysql")
-		case 2:
-			data.ProviderType = types.StringValue("postgresql")
-		case 3:
-			data.ProviderType = types.StringValue("mariadb")
-		default:
-			data.ProviderType = types.StringNull()
-		}
-	}
-
 	if database.Endpoint != nil {
 		data.Endpoint = types.StringValue(*database.Endpoint)
 	} else {
@@ -560,5 +544,11 @@ func (r *DatabaseResource) mapDatabaseToState(database *client.DatabaseInstance,
 		data.DeployedAt = types.StringValue(*database.DeployedAt)
 	} else {
 		data.DeployedAt = types.StringNull()
+	}
+
+	if database.ParameterGroupID != nil && *database.ParameterGroupID != "" {
+		data.ParameterGroupID = types.StringValue(*database.ParameterGroupID)
+	} else {
+		data.ParameterGroupID = types.StringNull()
 	}
 }

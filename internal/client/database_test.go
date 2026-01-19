@@ -24,11 +24,11 @@ func TestClient_CreateDatabase(t *testing.T) {
 		if req.Name != "my-database" {
 			t.Errorf("Name = %v, want my-database", req.Name)
 		}
-		if req.DatabaseProviderID != 1 {
-			t.Errorf("DatabaseProviderID = %v, want 1", req.DatabaseProviderID)
+		if req.Provider != "mysql" {
+			t.Errorf("Provider = %v, want mysql", req.Provider)
 		}
-		if req.StorageSizeGB != 20 {
-			t.Errorf("StorageSizeGB = %v, want 20", req.StorageSizeGB)
+		if req.ResourceProfile != "small" {
+			t.Errorf("ResourceProfile = %v, want small", req.ResourceProfile)
 		}
 
 		endpoint := "my-database.mysql.cluster.local"
@@ -43,12 +43,13 @@ func TestClient_CreateDatabase(t *testing.T) {
 				ID:              "db-123",
 				Name:            "my-database",
 				Status:          "creating",
-				ResourceProfile: "standard",
+				ResourceProfile: "small",
 				CPUCores:        2,
 				MemorySizeMB:    2048,
 				StorageSizeGB:   20,
 				DatabaseName:    &dbName,
 				Version:         "8.0",
+				Engine:          DatabaseEngine{ID: 1, Name: "mysql"},
 				Endpoint:        &endpoint,
 				Port:            &port,
 				Username:        &username,
@@ -59,15 +60,12 @@ func TestClient_CreateDatabase(t *testing.T) {
 
 	c := newTestClient(server)
 	db, err := c.CreateDatabase(context.Background(), CreateDatabaseRequest{
-		Name:               "my-database",
-		DatabaseProviderID: 1,
-		DatabaseName:       "mydb",
-		StorageSizeGB:      20,
-		MemorySizeMB:       2048,
-		CPUCores:           2,
-		Version:            "8.0",
-		HetznerDatacenter:  "fsn1",
-		ResourceProfile:    "standard",
+		Name:            "my-database",
+		Provider:        "mysql",
+		DatabaseName:    "mydb",
+		Version:         "8.0",
+		Datacenter:      "fsn1",
+		ResourceProfile: "small",
 	})
 
 	if err != nil {
@@ -79,8 +77,8 @@ func TestClient_CreateDatabase(t *testing.T) {
 	if db.Name != "my-database" {
 		t.Errorf("Name = %v, want my-database", db.Name)
 	}
-	if db.StorageSizeGB != 20 {
-		t.Errorf("StorageSizeGB = %v, want 20", db.StorageSizeGB)
+	if db.ResourceProfile != "small" {
+		t.Errorf("ResourceProfile = %v, want small", db.ResourceProfile)
 	}
 }
 
@@ -105,6 +103,7 @@ func TestClient_GetDatabase(t *testing.T) {
 				MemorySizeMB:  2048,
 				StorageSizeGB: 20,
 				Version:       "8.0",
+				Engine:        DatabaseEngine{ID: 1, Name: "mysql"},
 				Endpoint:      &endpoint,
 				Port:          &port,
 			},
@@ -162,33 +161,36 @@ func TestClient_UpdateDatabase(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("failed to decode request: %v", err)
 		}
-		if req.StorageSizeGB == nil || *req.StorageSizeGB != 50 {
-			t.Errorf("StorageSizeGB = %v, want 50", req.StorageSizeGB)
+		if req.ResourceProfile != "large" {
+			t.Errorf("ResourceProfile = %v, want large", req.ResourceProfile)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(updateDatabaseResponse{
 			Message: "Database instance updated",
 			Instance: DatabaseInstance{
-				ID:            "db-123",
-				Name:          "my-database",
-				StorageSizeGB: 50,
+				ID:              "db-123",
+				Name:            "my-database",
+				ResourceProfile: "large",
+				CPUCores:        4,
+				MemorySizeMB:    4096,
+				StorageSizeGB:   20,
+				Engine:          DatabaseEngine{ID: 1, Name: "mysql"},
 			},
 		})
 	})
 	defer server.Close()
 
 	c := newTestClient(server)
-	storageSize := 50
 	db, err := c.UpdateDatabase(context.Background(), "db-123", UpdateDatabaseRequest{
-		StorageSizeGB: &storageSize,
+		ResourceProfile: "large",
 	})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if db.StorageSizeGB != 50 {
-		t.Errorf("StorageSizeGB = %v, want 50", db.StorageSizeGB)
+	if db.ResourceProfile != "large" {
+		t.Errorf("ResourceProfile = %v, want large", db.ResourceProfile)
 	}
 }
 

@@ -3,34 +3,41 @@ package client
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
+// CacheProvider represents the provider object in cache instance response
+type CacheProvider struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 // CacheInstance represents a cache instance from the API
 type CacheInstance struct {
-	ID                 string    `json:"id"`
-	Name               string    `json:"name"`
-	Status             string    `json:"status"`
-	StatusLabel        string    `json:"status_label"`
-	ResourceProfile    string    `json:"resource_profile"`
-	CPUCores           int       `json:"cpu_cores"`
-	MemorySizeMB       int       `json:"memory_size_mb"`
-	Version            string    `json:"version"`
-	ProviderID         int       `json:"provider_id"`
-	Provider           *Provider `json:"provider,omitempty"`
-	Datacenter         string    `json:"hetzner_datacenter"`
-	Endpoint           *string   `json:"endpoint"`
-	Port               *int      `json:"port"`
-	MonthlyCostCents   int       `json:"monthly_cost_cents"`
-	MonthlyCostDollars float64   `json:"monthly_cost_dollars"`
-	DeployedAt         *string   `json:"deployed_at"`
-	CreatedAt          string    `json:"created_at"`
-	UpdatedAt          string    `json:"updated_at"`
-	TeamID             int       `json:"team_id"`
-	UserID             int       `json:"user_id"`
-	CanBeStarted       bool      `json:"can_be_started"`
-	CanBeStopped       bool      `json:"can_be_stopped"`
-	CanBeDestroyed     bool      `json:"can_be_destroyed"`
+	ID                 string        `json:"id"`
+	Name               string        `json:"name"`
+	Status             string        `json:"status"`
+	StatusLabel        string        `json:"status_label"`
+	ResourceProfile    string        `json:"resource_profile"`
+	CPUCores           int           `json:"cpu_cores"`
+	MemorySizeMB       int           `json:"memory_size_mb"`
+	Version            string        `json:"version"`
+	Provider           CacheProvider `json:"provider"`
+	Datacenter         string        `json:"datacenter"`
+	Endpoint           *string       `json:"endpoint"`
+	Port               *int          `json:"port"`
+	ParameterGroupID   *string       `json:"parameter_group_id"`
+	MonthlyCostCents   int           `json:"monthly_cost_cents"`
+	MonthlyCostDollars float64       `json:"monthly_cost_dollars"`
+	DeployedAt         *string       `json:"deployed_at"`
+	CreatedAt          string        `json:"created_at"`
+	UpdatedAt          string        `json:"updated_at"`
+	TeamID             int           `json:"team_id"`
+	UserID             int           `json:"user_id"`
+	CanBeStarted       bool          `json:"can_be_started"`
+	CanBeStopped       bool          `json:"can_be_stopped"`
+	CanBeDestroyed     bool          `json:"can_be_destroyed"`
 }
 
 // Provider represents a cache/database provider
@@ -42,21 +49,23 @@ type Provider struct {
 
 // CreateCacheRequest represents a request to create a cache instance
 type CreateCacheRequest struct {
-	Name             string `json:"name"`
-	CacheProviderID  int    `json:"cache_provider_id"`
-	MemorySizeMB     int    `json:"memory_size_mb"`
-	CPUCores         int    `json:"cpu_cores"`
-	Version          string `json:"version,omitempty"`
-	HetznerDatacenter string `json:"hetzner_datacenter"`
-	ResourceProfile  string `json:"resource_profile"`
+	Name             string  `json:"name"`
+	Provider         string  `json:"provider"` // redis, valkey, dragonfly
+	MemorySizeMB     int     `json:"memory_size_mb"`
+	CPUCores         int     `json:"cpu_cores"`
+	Version          string  `json:"version,omitempty"`
+	Datacenter       string  `json:"datacenter"`
+	ResourceProfile  string  `json:"resource_profile"`
+	ParameterGroupID *string `json:"parameter_group_id,omitempty"`
 }
 
 // UpdateCacheRequest represents a request to update a cache instance
 type UpdateCacheRequest struct {
-	Name            string `json:"name,omitempty"`
-	MemorySizeMB    *int   `json:"memory_size_mb,omitempty"`
-	CPUCores        *int   `json:"cpu_cores,omitempty"`
-	ResourceProfile string `json:"resource_profile,omitempty"`
+	Name             string  `json:"name,omitempty"`
+	MemorySizeMB     *int    `json:"memory_size_mb,omitempty"`
+	CPUCores         *int    `json:"cpu_cores,omitempty"`
+	ResourceProfile  string  `json:"resource_profile,omitempty"`
+	ParameterGroupID *string `json:"parameter_group_id,omitempty"`
 }
 
 type createCacheResponse struct {
@@ -146,10 +155,11 @@ func (c *Client) WaitForCacheStatus(ctx context.Context, id string, targetStatus
 		}
 		return fmt.Errorf("error checking cache status: %w", err)
 	}
-	if instance.Status == targetStatus {
+	status := strings.ToLower(instance.Status)
+	if status == targetStatus {
 		return nil
 	}
-	if instance.Status == "error" {
+	if status == "error" {
 		return fmt.Errorf("cache %s entered error state", id)
 	}
 
@@ -170,11 +180,12 @@ func (c *Client) WaitForCacheStatus(ctx context.Context, id string, targetStatus
 				return fmt.Errorf("error checking cache status: %w", err)
 			}
 
-			if instance.Status == targetStatus {
+			status := strings.ToLower(instance.Status)
+			if status == targetStatus {
 				return nil
 			}
 
-			if instance.Status == "error" {
+			if status == "error" {
 				return fmt.Errorf("cache %s entered error state", id)
 			}
 		}

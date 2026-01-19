@@ -21,6 +21,7 @@ func TestAccDatabaseResource_basic(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_database.test", "name", name),
 					resource.TestCheckResourceAttr("danubedata_database.test", "datacenter", "fsn1"),
+					resource.TestCheckResourceAttr("danubedata_database.test", "resource_profile", "small"),
 					resource.TestCheckResourceAttrSet("danubedata_database.test", "id"),
 					resource.TestCheckResourceAttrSet("danubedata_database.test", "status"),
 					resource.TestCheckResourceAttrSet("danubedata_database.test", "endpoint"),
@@ -29,9 +30,10 @@ func TestAccDatabaseResource_basic(t *testing.T) {
 			},
 			// Import
 			{
-				ResourceName:      "danubedata_database.test",
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            "danubedata_database.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"updated_at"},
 			},
 		},
 	})
@@ -49,9 +51,10 @@ func TestAccDatabaseResource_mysql(t *testing.T) {
 				Config: testAccDatabaseResourceConfig_mysql(name, dbName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_database.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_database.test", "provider_id", "1"), // MySQL
+					resource.TestCheckResourceAttr("danubedata_database.test", "engine", "mysql"),
 					resource.TestCheckResourceAttr("danubedata_database.test", "database_name", dbName),
 					resource.TestCheckResourceAttr("danubedata_database.test", "version", "8.0"),
+					resource.TestCheckResourceAttr("danubedata_database.test", "resource_profile", "small"),
 				),
 			},
 		},
@@ -70,8 +73,9 @@ func TestAccDatabaseResource_postgresql(t *testing.T) {
 				Config: testAccDatabaseResourceConfig_postgresql(name, dbName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_database.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_database.test", "provider_id", "2"), // PostgreSQL
+					resource.TestCheckResourceAttr("danubedata_database.test", "engine", "postgresql"),
 					resource.TestCheckResourceAttr("danubedata_database.test", "version", "16"),
+					resource.TestCheckResourceAttr("danubedata_database.test", "resource_profile", "small"),
 				),
 			},
 		},
@@ -90,7 +94,8 @@ func TestAccDatabaseResource_mariadb(t *testing.T) {
 				Config: testAccDatabaseResourceConfig_mariadb(name, dbName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_database.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_database.test", "provider_id", "3"), // MariaDB
+					resource.TestCheckResourceAttr("danubedata_database.test", "engine", "mariadb"),
+					resource.TestCheckResourceAttr("danubedata_database.test", "resource_profile", "small"),
 				),
 			},
 		},
@@ -105,20 +110,22 @@ func TestAccDatabaseResource_update(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccDatabaseResourceConfig_withResources(name, 20, 2048, 2),
+				Config: testAccDatabaseResourceConfig_withProfile(name, "small"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_database.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_database.test", "storage_size_gb", "20"),
-					resource.TestCheckResourceAttr("danubedata_database.test", "memory_size_mb", "2048"),
-					resource.TestCheckResourceAttr("danubedata_database.test", "cpu_cores", "2"),
+					resource.TestCheckResourceAttr("danubedata_database.test", "resource_profile", "small"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "storage_size_gb"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "memory_size_mb"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "cpu_cores"),
 				),
 			},
 			{
-				Config: testAccDatabaseResourceConfig_withResources(name, 50, 4096, 4),
+				Config: testAccDatabaseResourceConfig_withProfile(name, "medium"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("danubedata_database.test", "storage_size_gb", "50"),
-					resource.TestCheckResourceAttr("danubedata_database.test", "memory_size_mb", "4096"),
-					resource.TestCheckResourceAttr("danubedata_database.test", "cpu_cores", "4"),
+					resource.TestCheckResourceAttr("danubedata_database.test", "resource_profile", "medium"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "storage_size_gb"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "memory_size_mb"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "cpu_cores"),
 				),
 			},
 		},
@@ -130,12 +137,10 @@ func testAccDatabaseResourceConfig_basic(name string) string {
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_database" "test" {
-  name           = %q
-  provider_id    = 1  # MySQL
-  storage_size_gb = 20
-  memory_size_mb = 2048
-  cpu_cores      = 2
-  datacenter     = "fsn1"
+  name             = %q
+  engine           = "mysql"
+  resource_profile = "small"
+  datacenter       = "fsn1"
 
   timeouts {
     create = "15m"
@@ -151,14 +156,12 @@ func testAccDatabaseResourceConfig_mysql(name, dbName string) string {
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_database" "test" {
-  name            = %q
-  database_name   = %q
-  provider_id     = 1  # MySQL
-  version         = "8.0"
-  storage_size_gb = 20
-  memory_size_mb  = 2048
-  cpu_cores       = 2
-  datacenter      = "fsn1"
+  name             = %q
+  database_name    = %q
+  engine           = "mysql"
+  version          = "8.0"
+  resource_profile = "small"
+  datacenter       = "fsn1"
 
   timeouts {
     create = "15m"
@@ -174,14 +177,12 @@ func testAccDatabaseResourceConfig_postgresql(name, dbName string) string {
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_database" "test" {
-  name            = %q
-  database_name   = %q
-  provider_id     = 2  # PostgreSQL
-  version         = "16"
-  storage_size_gb = 20
-  memory_size_mb  = 2048
-  cpu_cores       = 2
-  datacenter      = "fsn1"
+  name             = %q
+  database_name    = %q
+  engine           = "postgresql"
+  version          = "16"
+  resource_profile = "small"
+  datacenter       = "fsn1"
 
   timeouts {
     create = "15m"
@@ -197,13 +198,11 @@ func testAccDatabaseResourceConfig_mariadb(name, dbName string) string {
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_database" "test" {
-  name            = %q
-  database_name   = %q
-  provider_id     = 3  # MariaDB
-  storage_size_gb = 20
-  memory_size_mb  = 2048
-  cpu_cores       = 2
-  datacenter      = "fsn1"
+  name             = %q
+  database_name    = %q
+  engine           = "mariadb"
+  resource_profile = "small"
+  datacenter       = "fsn1"
 
   timeouts {
     create = "15m"
@@ -214,17 +213,15 @@ resource "danubedata_database" "test" {
 	)
 }
 
-func testAccDatabaseResourceConfig_withResources(name string, storageGB, memoryMB, cpuCores int) string {
+func testAccDatabaseResourceConfig_withProfile(name string, resourceProfile string) string {
 	return acctest.ConfigCompose(
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_database" "test" {
-  name            = %q
-  provider_id     = 1  # MySQL
-  storage_size_gb = %d
-  memory_size_mb  = %d
-  cpu_cores       = %d
-  datacenter      = "fsn1"
+  name             = %q
+  engine           = "mysql"
+  resource_profile = %q
+  datacenter       = "fsn1"
 
   timeouts {
     create = "15m"
@@ -232,6 +229,6 @@ resource "danubedata_database" "test" {
     delete = "10m"
   }
 }
-`, name, storageGB, memoryMB, cpuCores),
+`, name, resourceProfile),
 	)
 }

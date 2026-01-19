@@ -197,7 +197,7 @@ func (r *SshKeyResource) ImportState(ctx context.Context, req resource.ImportSta
 }
 
 func (r *SshKeyResource) mapSshKeyToState(sshKey *client.SshKey, data *SshKeyResourceModel) {
-	data.ID = types.StringValue(sshKey.ID)
+	data.ID = types.StringValue(fmt.Sprintf("%d", sshKey.ID))
 	data.Name = types.StringValue(sshKey.Name)
 	data.PublicKey = types.StringValue(sshKey.PublicKey)
 	data.Fingerprint = types.StringValue(sshKey.Fingerprint)
