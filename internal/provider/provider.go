@@ -123,9 +123,20 @@ func (p *DanubeDataProvider) Resources(ctx context.Context) []func() resource.Re
 
 func (p *DanubeDataProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		// Listing data sources
 		datasources.NewVpsImagesDataSource,
 		datasources.NewCacheProvidersDataSource,
 		datasources.NewDatabaseProvidersDataSource,
 		datasources.NewSshKeysDataSource,
+
+		// Resource listing data sources
+		datasources.NewVpssDataSource,
+		datasources.NewDatabasesDataSource,
+		datasources.NewCachesDataSource,
+		datasources.NewFirewallsDataSource,
+		datasources.NewServerlessContainersDataSource,
+		datasources.NewStorageBucketsDataSource,
+		datasources.NewStorageAccessKeysDataSource,
+		datasources.NewVpsSnapshotsDataSource,
 	}
 }

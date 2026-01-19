@@ -99,13 +99,24 @@ func (c *Client) GetFirewall(ctx context.Context, id string) (*Firewall, error) 
 	return &resp.Firewall, nil
 }
 
-// ListFirewalls retrieves all firewalls
+// ListFirewalls retrieves all firewalls (handles pagination automatically)
 func (c *Client) ListFirewalls(ctx context.Context) ([]Firewall, error) {
-	var resp listFirewallsResponse
-	if err := c.doRequest(ctx, "GET", "/firewalls", nil, &resp); err != nil {
-		return nil, err
+	var allFirewalls []Firewall
+	page := 1
+
+	for {
+		var resp listFirewallsResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/firewalls?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allFirewalls = append(allFirewalls, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
 	}
-	return resp.Data, nil
+	return allFirewalls, nil
 }
 
 // UpdateFirewall updates a firewall

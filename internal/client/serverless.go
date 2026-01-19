@@ -89,13 +89,24 @@ func (c *Client) GetServerless(ctx context.Context, id string) (*ServerlessConta
 	return &container, nil
 }
 
-// ListServerless retrieves all serverless containers
+// ListServerless retrieves all serverless containers (handles pagination automatically)
 func (c *Client) ListServerless(ctx context.Context) ([]ServerlessContainer, error) {
-	var resp listServerlessResponse
-	if err := c.doRequest(ctx, "GET", "/serverless", nil, &resp); err != nil {
-		return nil, err
+	var allContainers []ServerlessContainer
+	page := 1
+
+	for {
+		var resp listServerlessResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/serverless?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allContainers = append(allContainers, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
 	}
-	return resp.Data, nil
+	return allContainers, nil
 }
 
 // UpdateServerless updates a serverless container

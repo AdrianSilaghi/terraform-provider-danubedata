@@ -84,6 +84,11 @@ type DatabaseCredentials struct {
 	Password       string `json:"password"`
 }
 
+type listDatabaseResponse struct {
+	Data       []DatabaseInstance `json:"data"`
+	Pagination Pagination         `json:"pagination"`
+}
+
 // CreateDatabase creates a new database instance
 func (c *Client) CreateDatabase(ctx context.Context, req CreateDatabaseRequest) (*DatabaseInstance, error) {
 	var resp createDatabaseResponse
@@ -133,6 +138,26 @@ func (c *Client) GetDatabaseCredentials(ctx context.Context, id string) (*Databa
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// ListDatabases lists all database instances (handles pagination automatically)
+func (c *Client) ListDatabases(ctx context.Context) ([]DatabaseInstance, error) {
+	var allInstances []DatabaseInstance
+	page := 1
+
+	for {
+		var resp listDatabaseResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/database?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allInstances = append(allInstances, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
+	}
+	return allInstances, nil
 }
 
 // WaitForDatabaseStatus waits for a database instance to reach a target status

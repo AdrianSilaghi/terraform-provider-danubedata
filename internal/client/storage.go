@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -108,6 +109,16 @@ type CreateStorageAccessKeyResponse struct {
 	Message         string  `json:"message"`
 }
 
+type listStorageBucketsResponse struct {
+	Data       []StorageBucket `json:"data"`
+	Pagination Pagination      `json:"pagination"`
+}
+
+type listStorageAccessKeysResponse struct {
+	Data       []StorageAccessKey `json:"data"`
+	Pagination Pagination         `json:"pagination"`
+}
+
 // CreateStorageBucket creates a new storage bucket
 func (c *Client) CreateStorageBucket(ctx context.Context, req CreateStorageBucketRequest) (*StorageBucket, error) {
 	var resp createStorageBucketResponse
@@ -140,6 +151,26 @@ func (c *Client) DeleteStorageBucket(ctx context.Context, id string) error {
 	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/storage/buckets/%s", id), nil, nil)
 }
 
+// ListStorageBuckets lists all storage buckets (handles pagination automatically)
+func (c *Client) ListStorageBuckets(ctx context.Context) ([]StorageBucket, error) {
+	var allBuckets []StorageBucket
+	page := 1
+
+	for {
+		var resp listStorageBucketsResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/storage/buckets?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allBuckets = append(allBuckets, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
+	}
+	return allBuckets, nil
+}
+
 // WaitForStorageBucketStatus waits for a storage bucket to reach a target status
 func (c *Client) WaitForStorageBucketStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
@@ -154,10 +185,11 @@ func (c *Client) WaitForStorageBucketStatus(ctx context.Context, id string, targ
 		}
 		return fmt.Errorf("error checking storage bucket status: %w", err)
 	}
-	if bucket.Status == targetStatus {
+	status := strings.ToLower(bucket.Status)
+	if status == targetStatus {
 		return nil
 	}
-	if bucket.Status == "error" {
+	if status == "error" {
 		return fmt.Errorf("storage bucket %s entered error state", id)
 	}
 
@@ -178,11 +210,12 @@ func (c *Client) WaitForStorageBucketStatus(ctx context.Context, id string, targ
 				return fmt.Errorf("error checking storage bucket status: %w", err)
 			}
 
-			if bucket.Status == targetStatus {
+			status := strings.ToLower(bucket.Status)
+			if status == targetStatus {
 				return nil
 			}
 
-			if bucket.Status == "error" {
+			if status == "error" {
 				return fmt.Errorf("storage bucket %s entered error state", id)
 			}
 		}
@@ -238,4 +271,24 @@ func (c *Client) GetStorageAccessKey(ctx context.Context, id string) (*StorageAc
 // DeleteStorageAccessKey revokes/deletes a storage access key
 func (c *Client) DeleteStorageAccessKey(ctx context.Context, id string) error {
 	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/storage/access-keys/%s", id), nil, nil)
+}
+
+// ListStorageAccessKeys lists all storage access keys (handles pagination automatically)
+func (c *Client) ListStorageAccessKeys(ctx context.Context) ([]StorageAccessKey, error) {
+	var allKeys []StorageAccessKey
+	page := 1
+
+	for {
+		var resp listStorageAccessKeysResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/storage/access-keys?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allKeys = append(allKeys, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
+	}
+	return allKeys, nil
 }

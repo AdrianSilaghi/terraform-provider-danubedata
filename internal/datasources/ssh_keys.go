@@ -91,6 +91,14 @@ func (d *SshKeysDataSource) Configure(ctx context.Context, req datasource.Config
 }
 
 func (d *SshKeysDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	if d.client == nil {
+		resp.Diagnostics.AddError(
+			"Unconfigured Client",
+			"Expected configured client. Please report this issue to the provider developers.",
+		)
+		return
+	}
+
 	var data SshKeysDataSourceModel
 
 	keys, err := d.client.ListSshKeys(ctx)

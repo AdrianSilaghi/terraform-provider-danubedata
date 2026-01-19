@@ -39,7 +39,9 @@ func TestProvider_HasExpectedDataSourceTypes(t *testing.T) {
 	dataSources := p.DataSources(context.Background())
 
 	// Verify we have the expected number of data sources
-	expectedDataSourceCount := 4 // vps_images, cache_providers, database_providers, ssh_keys
+	// vps_images, cache_providers, database_providers, ssh_keys (4)
+	// vpss, databases, caches, firewalls, serverless_containers, storage_buckets, storage_access_keys, vps_snapshots (8)
+	expectedDataSourceCount := 12
 	if len(dataSources) != expectedDataSourceCount {
 		t.Errorf("expected %d data sources, got %d", expectedDataSourceCount, len(dataSources))
 	}

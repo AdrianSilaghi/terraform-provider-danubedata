@@ -106,6 +106,14 @@ func (d *VpsImagesDataSource) Configure(ctx context.Context, req datasource.Conf
 }
 
 func (d *VpsImagesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	if d.client == nil {
+		resp.Diagnostics.AddError(
+			"Unconfigured Client",
+			"Expected configured client. Please report this issue to the provider developers.",
+		)
+		return
+	}
+
 	var data VpsImagesDataSourceModel
 
 	images, err := d.client.ListVpsImages(ctx)

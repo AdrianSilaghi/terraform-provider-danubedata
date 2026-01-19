@@ -90,6 +90,11 @@ type CacheConnectionInfo struct {
 	Password       string `json:"password"`
 }
 
+type listCacheResponse struct {
+	Data       []CacheInstance `json:"data"`
+	Pagination Pagination      `json:"pagination"`
+}
+
 // CreateCache creates a new cache instance
 func (c *Client) CreateCache(ctx context.Context, req CreateCacheRequest) (*CacheInstance, error) {
 	var resp createCacheResponse
@@ -139,6 +144,26 @@ func (c *Client) GetCacheConnectionInfo(ctx context.Context, id string) (*CacheC
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// ListCaches lists all cache instances (handles pagination automatically)
+func (c *Client) ListCaches(ctx context.Context) ([]CacheInstance, error) {
+	var allInstances []CacheInstance
+	page := 1
+
+	for {
+		var resp listCacheResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/cache?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allInstances = append(allInstances, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
+	}
+	return allInstances, nil
 }
 
 // WaitForCacheStatus waits for a cache instance to reach a target status

@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -114,6 +115,11 @@ type listImagesResponse struct {
 	Images []VpsImage `json:"images"`
 }
 
+type listVpsResponse struct {
+	Data       []VpsInstance `json:"data"`
+	Pagination Pagination    `json:"pagination"`
+}
+
 // CreateVps creates a new VPS instance
 func (c *Client) CreateVps(ctx context.Context, req CreateVpsRequest) (*VpsInstance, error) {
 	var resp createVpsResponse
@@ -190,6 +196,26 @@ func (c *Client) ListVpsImages(ctx context.Context) ([]VpsImage, error) {
 	return resp.Images, nil
 }
 
+// ListVps lists all VPS instances (handles pagination automatically)
+func (c *Client) ListVps(ctx context.Context) ([]VpsInstance, error) {
+	var allInstances []VpsInstance
+	page := 1
+
+	for {
+		var resp listVpsResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/vps?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allInstances = append(allInstances, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
+	}
+	return allInstances, nil
+}
+
 // WaitForVpsStatus waits for a VPS to reach a target status
 func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
@@ -204,6 +230,7 @@ func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus s
 		}
 		return fmt.Errorf("error checking VPS status: %w", err)
 	}
+	status = strings.ToLower(status)
 	if status == targetStatus {
 		return nil
 	}
@@ -228,6 +255,7 @@ func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus s
 				return fmt.Errorf("error checking VPS status: %w", err)
 			}
 
+			status = strings.ToLower(status)
 			if status == targetStatus {
 				return nil
 			}

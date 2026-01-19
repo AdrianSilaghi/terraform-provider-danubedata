@@ -54,13 +54,24 @@ func (c *Client) GetSshKey(ctx context.Context, id string) (*SshKey, error) {
 	return &resp.Key, nil
 }
 
-// ListSshKeys retrieves all SSH keys
+// ListSshKeys retrieves all SSH keys (handles pagination automatically)
 func (c *Client) ListSshKeys(ctx context.Context) ([]SshKey, error) {
-	var resp listSshKeysResponse
-	if err := c.doRequest(ctx, "GET", "/ssh-keys", nil, &resp); err != nil {
-		return nil, err
+	var allKeys []SshKey
+	page := 1
+
+	for {
+		var resp listSshKeysResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/ssh-keys?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allKeys = append(allKeys, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
 	}
-	return resp.Data, nil
+	return allKeys, nil
 }
 
 // DeleteSshKey deletes an SSH key

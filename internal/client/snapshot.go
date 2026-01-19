@@ -119,13 +119,24 @@ func (c *Client) GetVpsSnapshot(ctx context.Context, id string) (*VpsSnapshot, e
 	return nil, &NotFoundError{Resource: "VPS snapshot", ID: id}
 }
 
-// ListVpsSnapshots lists all VPS snapshots
+// ListVpsSnapshots lists all VPS snapshots (handles pagination automatically)
 func (c *Client) ListVpsSnapshots(ctx context.Context) ([]VpsSnapshot, error) {
-	var resp listVpsSnapshotsResponse
-	if err := c.doRequest(ctx, "GET", "/snapshots/vps", nil, &resp); err != nil {
-		return nil, err
+	var allSnapshots []VpsSnapshot
+	page := 1
+
+	for {
+		var resp listVpsSnapshotsResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/snapshots/vps?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allSnapshots = append(allSnapshots, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
 	}
-	return resp.Data, nil
+	return allSnapshots, nil
 }
 
 // RestoreVpsSnapshot restores a VPS snapshot
@@ -197,13 +208,24 @@ func (c *Client) GetCacheSnapshot(ctx context.Context, id string) (*CacheSnapsho
 	return nil, &NotFoundError{Resource: "Cache snapshot", ID: id}
 }
 
-// ListCacheSnapshots lists all cache snapshots
+// ListCacheSnapshots lists all cache snapshots (handles pagination automatically)
 func (c *Client) ListCacheSnapshots(ctx context.Context) ([]CacheSnapshot, error) {
-	var resp listCacheSnapshotsResponse
-	if err := c.doRequest(ctx, "GET", "/snapshots/cache", nil, &resp); err != nil {
-		return nil, err
+	var allSnapshots []CacheSnapshot
+	page := 1
+
+	for {
+		var resp listCacheSnapshotsResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/snapshots/cache?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allSnapshots = append(allSnapshots, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
 	}
-	return resp.Data, nil
+	return allSnapshots, nil
 }
 
 // RestoreCacheSnapshot restores a cache snapshot
@@ -241,13 +263,24 @@ func (c *Client) GetDatabaseSnapshot(ctx context.Context, id string) (*DatabaseS
 	return nil, &NotFoundError{Resource: "Database snapshot", ID: id}
 }
 
-// ListDatabaseSnapshots lists all database snapshots
+// ListDatabaseSnapshots lists all database snapshots (handles pagination automatically)
 func (c *Client) ListDatabaseSnapshots(ctx context.Context) ([]DatabaseSnapshot, error) {
-	var resp listDatabaseSnapshotsResponse
-	if err := c.doRequest(ctx, "GET", "/snapshots/database", nil, &resp); err != nil {
-		return nil, err
+	var allSnapshots []DatabaseSnapshot
+	page := 1
+
+	for {
+		var resp listDatabaseSnapshotsResponse
+		if err := c.doRequest(ctx, "GET", fmt.Sprintf("/snapshots/database?page=%d", page), nil, &resp); err != nil {
+			return nil, err
+		}
+		allSnapshots = append(allSnapshots, resp.Data...)
+
+		if page >= resp.Pagination.LastPage || len(resp.Data) == 0 {
+			break
+		}
+		page++
 	}
-	return resp.Data, nil
+	return allSnapshots, nil
 }
 
 // RestoreDatabaseSnapshot restores a database snapshot
