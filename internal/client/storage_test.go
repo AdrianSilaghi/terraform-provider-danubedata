@@ -40,7 +40,7 @@ func TestClient_CreateStorageBucket(t *testing.T) {
 				Name:              "my-bucket",
 				Status:            "active",
 				Region:            "fsn1",
-				EndpointURL:       "https://s3.fsn1.danubedata.com",
+				EndpointURL:       "https://s3.danubedata.ro",
 				MinioBucketName:   "dd-1-my-bucket",
 				VersioningEnabled: true,
 			},
@@ -85,12 +85,12 @@ func TestClient_GetStorageBucket(t *testing.T) {
 				Name:              "my-bucket",
 				Status:            "active",
 				Region:            "fsn1",
-				EndpointURL:       "https://s3.fsn1.danubedata.com",
+				EndpointURL:       "https://s3.danubedata.ro",
 				SizeBytes:         1024 * 1024 * 100, // 100 MB
 				ObjectCount:       50,
 				VersioningEnabled: true,
 			},
-			Endpoint: "https://s3.fsn1.danubedata.com",
+			Endpoint: "https://s3.danubedata.ro",
 		})
 	})
 	defer server.Close()

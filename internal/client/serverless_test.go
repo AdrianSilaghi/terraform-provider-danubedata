@@ -44,7 +44,7 @@ func TestClient_CreateServerless(t *testing.T) {
 				Port:           80,
 				MinInstances:   0,
 				MaxInstances:   10,
-				URL:            "https://my-app.serverless.danubedata.com",
+				URL:            "https://my-app.serverless.danubedata.ro",
 			},
 		})
 	})
@@ -99,7 +99,7 @@ func TestClient_GetServerless(t *testing.T) {
 					"ENV": "production",
 				},
 			},
-			URL:         "https://my-app.serverless.danubedata.com",
+			URL:         "https://my-app.serverless.danubedata.ro",
 			MonthlyCost: 4.99,
 		})
 	})
@@ -117,8 +117,8 @@ func TestClient_GetServerless(t *testing.T) {
 	if container.Status != "running" {
 		t.Errorf("Status = %v, want running", container.Status)
 	}
-	if container.URL != "https://my-app.serverless.danubedata.com" {
-		t.Errorf("URL = %v, want https://my-app.serverless.danubedata.com", container.URL)
+	if container.URL != "https://my-app.serverless.danubedata.ro" {
+		t.Errorf("URL = %v, want https://my-app.serverless.danubedata.ro", container.URL)
 	}
 	if container.EnvironmentVariables["ENV"] != "production" {
 		t.Errorf("EnvironmentVariables[ENV] = %v, want production", container.EnvironmentVariables["ENV"])
@@ -262,7 +262,7 @@ func TestClient_GetServerlessStatus(t *testing.T) {
 				Name:   "my-app",
 				Status: "running",
 			},
-			URL: "https://my-app.serverless.danubedata.com",
+			URL: "https://my-app.serverless.danubedata.ro",
 		})
 	})
 	defer server.Close()

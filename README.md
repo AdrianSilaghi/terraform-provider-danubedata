@@ -1,6 +1,6 @@
 # Terraform Provider for DanubeData
 
-The DanubeData Terraform provider allows you to manage [DanubeData](https://danubedata.com) infrastructure resources using Terraform.
+The DanubeData Terraform provider allows you to manage [DanubeData](https://danubedata.ro) infrastructure resources using Terraform.
 
 ## Requirements
 
