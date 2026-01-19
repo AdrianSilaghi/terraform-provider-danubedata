@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2025-01-17
+## [0.1.0] - 2025-01-19
 
 ### Added
 
@@ -31,15 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Rule priorities
 
 - `danubedata_cache` - Manage cache instances with support for:
-  - Redis
-  - Valkey (Redis fork)
-  - Dragonfly (high-performance cache)
+  - Redis, Valkey, Dragonfly providers via `cache_provider` attribute
+  - Resource profiles for simplified configuration
   - Custom memory and CPU allocation
 
 - `danubedata_database` - Manage database instances with support for:
-  - MySQL (8.0-9.1)
-  - PostgreSQL (15-17)
-  - MariaDB (10.11-11.6)
+  - MySQL, PostgreSQL, MariaDB engines via `engine` attribute
+  - Resource profiles for simplified configuration
   - Custom storage, memory, and CPU allocation
 
 - `danubedata_storage_bucket` - Manage S3-compatible storage buckets with:
