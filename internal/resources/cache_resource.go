@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -43,6 +44,9 @@ type CacheResourceModel struct {
 	ParameterGroupID types.String   `tfsdk:"parameter_group_id"`
 	Endpoint         types.String   `tfsdk:"endpoint"`
 	Port             types.Int64    `tfsdk:"port"`
+	ConnectionInfo   types.String   `tfsdk:"connection_info"`
+	Password         types.String   `tfsdk:"password"`
+	DnsEnabled       types.Bool     `tfsdk:"dns_enabled"`
 	MonthlyCostCents types.Int64    `tfsdk:"monthly_cost_cents"`
 	MonthlyCost      types.Float64  `tfsdk:"monthly_cost"`
 	DeployedAt       types.String   `tfsdk:"deployed_at"`
@@ -138,6 +142,22 @@ func (r *CacheResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"port": schema.Int64Attribute{
 				Description: "Port number for the cache instance.",
 				Computed:    true,
+			},
+			"connection_info": schema.StringAttribute{
+				Description: "Connection URI for the cache instance (e.g. redis://host:6379).",
+				Computed:    true,
+				Sensitive:   true,
+			},
+			"password": schema.StringAttribute{
+				Description: "Password for the cache instance.",
+				Computed:    true,
+				Sensitive:   true,
+			},
+			"dns_enabled": schema.BoolAttribute{
+				Description: "Whether public DNS (and TCP LoadBalancer exposure) is enabled for the cache. Defaults to false. Note: the API does not currently return the live DNS state, so out-of-band changes will not be detected until the next apply that explicitly re-sets this field.",
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(false),
 			},
 			"monthly_cost_cents": schema.Int64Attribute{
 				Description: "Monthly cost in cents.",
@@ -260,8 +280,22 @@ func (r *CacheResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	r.mapCacheToState(cache, &data)
+	r.fetchCacheConnectionInfo(ctx, cache.ID, &data)
 
+	// Save state *before* attempting the DNS toggle so that a failing DNS call doesn't
+	// leave the user with a provisioned-but-untracked cache instance. A DNS error is then
+	// reported alongside a successfully-tracked resource that can be updated later.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if data.DnsEnabled.ValueBool() {
+		if err := r.client.EnableCacheDns(ctx, cache.ID); err != nil {
+			resp.Diagnostics.AddError("Failed to enable cache DNS", err.Error())
+			return
+		}
+	}
 }
 
 func (r *CacheResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -282,6 +316,7 @@ func (r *CacheResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 
 	r.mapCacheToState(cache, &data)
+	r.fetchCacheConnectionInfo(ctx, cache.ID, &data)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -360,6 +395,21 @@ func (r *CacheResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		// Waiting here would cause a timeout since the API returns before the job runs.
 
 		r.mapCacheToState(cache, &data)
+		r.fetchCacheConnectionInfo(ctx, cache.ID, &data)
+	}
+
+	if !data.DnsEnabled.Equal(state.DnsEnabled) {
+		if data.DnsEnabled.ValueBool() {
+			if err := r.client.EnableCacheDns(ctx, data.ID.ValueString()); err != nil {
+				resp.Diagnostics.AddError("Failed to enable cache DNS", err.Error())
+				return
+			}
+		} else {
+			if err := r.client.DisableCacheDns(ctx, data.ID.ValueString()); err != nil {
+				resp.Diagnostics.AddError("Failed to disable cache DNS", err.Error())
+				return
+			}
+		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -528,4 +578,21 @@ func (r *CacheResource) mapCacheToState(cache *client.CacheInstance, data *Cache
 	} else {
 		data.ParameterGroupID = types.StringNull()
 	}
+}
+
+// fetchCacheConnectionInfo populates connection_info and password from the API.
+// Connection info is only available once the instance is running; failures are logged and tolerated.
+func (r *CacheResource) fetchCacheConnectionInfo(ctx context.Context, id string, data *CacheResourceModel) {
+	info, err := r.client.GetCacheConnectionInfo(ctx, id)
+	if err != nil {
+		tflog.Debug(ctx, "Connection info not yet available", map[string]interface{}{
+			"id":    id,
+			"error": err.Error(),
+		})
+		data.ConnectionInfo = types.StringNull()
+		data.Password = types.StringNull()
+		return
+	}
+	data.ConnectionInfo = types.StringValue(info.ConnectionInfo)
+	data.Password = types.StringValue(info.Password)
 }

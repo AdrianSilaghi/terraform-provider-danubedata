@@ -187,6 +187,22 @@ func (c *Client) GetVpsStatus(ctx context.Context, id string) (string, error) {
 	return resp.Status, nil
 }
 
+// VpsPassword represents the credential bundle for a VPS instance.
+type VpsPassword struct {
+	Password string  `json:"password"`
+	Username string  `json:"username"`
+	PublicIP *string `json:"public_ip"`
+}
+
+// GetVpsPassword retrieves the root password for a VPS instance.
+func (c *Client) GetVpsPassword(ctx context.Context, id string) (*VpsPassword, error) {
+	var resp VpsPassword
+	if err := c.doRequest(ctx, "GET", fmt.Sprintf("/vps/%s/password", id), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // ListVpsImages lists all available VPS images
 func (c *Client) ListVpsImages(ctx context.Context) ([]VpsImage, error) {
 	var resp listImagesResponse

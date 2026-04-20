@@ -238,6 +238,39 @@ func (c *Client) DeleteCacheSnapshot(ctx context.Context, id string) error {
 	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/snapshots/cache/%s", id), nil, nil)
 }
 
+// WaitForCacheSnapshotStatus waits for a cache snapshot to reach a target status
+func (c *Client) WaitForCacheSnapshotStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return fmt.Errorf("timeout waiting for cache snapshot %s to reach status %s", id, targetStatus)
+			}
+
+			snapshot, err := c.GetCacheSnapshot(ctx, id)
+			if err != nil {
+				if IsNotFound(err) && targetStatus == "deleted" {
+					return nil
+				}
+				return fmt.Errorf("error checking cache snapshot status: %w", err)
+			}
+
+			if snapshot.Status == targetStatus {
+				return nil
+			}
+			if snapshot.Status == "error" || snapshot.Status == "failed" {
+				return fmt.Errorf("cache snapshot %s entered error state", id)
+			}
+		}
+	}
+}
+
 // Database Snapshot operations
 
 // CreateDatabaseSnapshot creates a new database snapshot
@@ -291,4 +324,37 @@ func (c *Client) RestoreDatabaseSnapshot(ctx context.Context, id string) error {
 // DeleteDatabaseSnapshot deletes a database snapshot
 func (c *Client) DeleteDatabaseSnapshot(ctx context.Context, id string) error {
 	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/snapshots/database/%s", id), nil, nil)
+}
+
+// WaitForDatabaseSnapshotStatus waits for a database snapshot to reach a target status
+func (c *Client) WaitForDatabaseSnapshotStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return fmt.Errorf("timeout waiting for database snapshot %s to reach status %s", id, targetStatus)
+			}
+
+			snapshot, err := c.GetDatabaseSnapshot(ctx, id)
+			if err != nil {
+				if IsNotFound(err) && targetStatus == "deleted" {
+					return nil
+				}
+				return fmt.Errorf("error checking database snapshot status: %w", err)
+			}
+
+			if snapshot.Status == targetStatus {
+				return nil
+			}
+			if snapshot.Status == "error" || snapshot.Status == "failed" {
+				return fmt.Errorf("database snapshot %s entered error state", id)
+			}
+		}
+	}
 }

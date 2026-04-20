@@ -107,6 +107,8 @@ func (p *DanubeDataProvider) Resources(ctx context.Context) []func() resource.Re
 		// Data Services
 		resources.NewCacheResource,
 		resources.NewDatabaseResource,
+		resources.NewDatabaseReplicaResource,
+		resources.NewParameterGroupResource,
 
 		// Storage
 		resources.NewStorageBucketResource,
@@ -118,6 +120,12 @@ func (p *DanubeDataProvider) Resources(ctx context.Context) []func() resource.Re
 
 		// Snapshots
 		resources.NewVpsSnapshotResource,
+		resources.NewCacheSnapshotResource,
+		resources.NewDatabaseSnapshotResource,
+
+		// Static sites
+		resources.NewStaticSiteResource,
+		resources.NewStaticSiteDomainResource,
 	}
 }
 
@@ -128,6 +136,7 @@ func (p *DanubeDataProvider) DataSources(ctx context.Context) []func() datasourc
 		datasources.NewCacheProvidersDataSource,
 		datasources.NewDatabaseProvidersDataSource,
 		datasources.NewSshKeysDataSource,
+		datasources.NewParameterGroupsDataSource,
 
 		// Resource listing data sources
 		datasources.NewVpssDataSource,
@@ -138,5 +147,8 @@ func (p *DanubeDataProvider) DataSources(ctx context.Context) []func() datasourc
 		datasources.NewStorageBucketsDataSource,
 		datasources.NewStorageAccessKeysDataSource,
 		datasources.NewVpsSnapshotsDataSource,
+		datasources.NewCacheSnapshotsDataSource,
+		datasources.NewDatabaseSnapshotsDataSource,
+		datasources.NewStaticSitesDataSource,
 	}
 }

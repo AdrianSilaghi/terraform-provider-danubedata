@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -46,6 +47,9 @@ type DatabaseResourceModel struct {
 	Endpoint         types.String   `tfsdk:"endpoint"`
 	Port             types.Int64    `tfsdk:"port"`
 	Username         types.String   `tfsdk:"username"`
+	Password         types.String   `tfsdk:"password"`
+	ConnectionInfo   types.String   `tfsdk:"connection_info"`
+	DnsEnabled       types.Bool     `tfsdk:"dns_enabled"`
 	MonthlyCostCents types.Int64    `tfsdk:"monthly_cost_cents"`
 	MonthlyCost      types.Float64  `tfsdk:"monthly_cost"`
 	DeployedAt       types.String   `tfsdk:"deployed_at"`
@@ -164,6 +168,22 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 			"username": schema.StringAttribute{
 				Description: "Root username for the database instance.",
 				Computed:    true,
+			},
+			"password": schema.StringAttribute{
+				Description: "Root password for the database instance.",
+				Computed:    true,
+				Sensitive:   true,
+			},
+			"connection_info": schema.StringAttribute{
+				Description: "Connection URI for the database instance (e.g. mysql://user:pass@host:3306/db).",
+				Computed:    true,
+				Sensitive:   true,
+			},
+			"dns_enabled": schema.BoolAttribute{
+				Description: "Whether public DNS (and TCP LoadBalancer exposure) is enabled for the database. Defaults to false. Note: the API does not currently return the live DNS state, so out-of-band changes will not be detected until the next apply that explicitly re-sets this field.",
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(false),
 			},
 			"monthly_cost_cents": schema.Int64Attribute{
 				Description: "Monthly cost in cents.",
@@ -288,8 +308,21 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	r.mapDatabaseToState(database, &data)
+	r.fetchDatabaseCredentials(ctx, database.ID, &data)
 
+	// Save state *before* attempting the DNS toggle so that a failing DNS call doesn't
+	// leave the user with a provisioned-but-untracked database instance.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if data.DnsEnabled.ValueBool() {
+		if err := r.client.EnableDatabaseDns(ctx, database.ID); err != nil {
+			resp.Diagnostics.AddError("Failed to enable database DNS", err.Error())
+			return
+		}
+	}
 }
 
 func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -310,6 +343,7 @@ func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	r.mapDatabaseToState(database, &data)
+	r.fetchDatabaseCredentials(ctx, database.ID, &data)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -371,6 +405,21 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 		// Waiting here would cause a timeout since the API returns before the job runs.
 
 		r.mapDatabaseToState(database, &data)
+		r.fetchDatabaseCredentials(ctx, database.ID, &data)
+	}
+
+	if !data.DnsEnabled.Equal(state.DnsEnabled) {
+		if data.DnsEnabled.ValueBool() {
+			if err := r.client.EnableDatabaseDns(ctx, data.ID.ValueString()); err != nil {
+				resp.Diagnostics.AddError("Failed to enable database DNS", err.Error())
+				return
+			}
+		} else {
+			if err := r.client.DisableDatabaseDns(ctx, data.ID.ValueString()); err != nil {
+				resp.Diagnostics.AddError("Failed to disable database DNS", err.Error())
+				return
+			}
+		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -551,4 +600,22 @@ func (r *DatabaseResource) mapDatabaseToState(database *client.DatabaseInstance,
 	} else {
 		data.ParameterGroupID = types.StringNull()
 	}
+}
+
+// fetchDatabaseCredentials populates username, password, and connection_info from the API.
+// Credentials are only available once the instance is running; failures are logged and tolerated.
+func (r *DatabaseResource) fetchDatabaseCredentials(ctx context.Context, id string, data *DatabaseResourceModel) {
+	creds, err := r.client.GetDatabaseCredentials(ctx, id)
+	if err != nil {
+		tflog.Debug(ctx, "Database credentials not yet available", map[string]interface{}{
+			"id":    id,
+			"error": err.Error(),
+		})
+		data.Password = types.StringNull()
+		data.ConnectionInfo = types.StringNull()
+		return
+	}
+	data.Username = types.StringValue(creds.Username)
+	data.Password = types.StringValue(creds.Password)
+	data.ConnectionInfo = types.StringValue(creds.ConnectionInfo)
 }

@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-20
+
+### Added
+
+#### Resources
+- `danubedata_parameter_group` - Manage cache, database, and queue parameter groups with custom parameters and locked keys.
+- `danubedata_database_replica` - Manage read replicas for database instances (use `count`/`for_each` + `depends_on` to serialize creation).
+- `danubedata_cache_snapshot` - Manage snapshots of cache instances.
+- `danubedata_database_snapshot` - Manage snapshots of database instances.
+- `danubedata_static_site` - Manage static sites (Pages). Build/deploy triggers remain a CLI/CI concern.
+- `danubedata_static_site_domain` - Attach custom domains to static sites with automatic verification trigger.
+
+#### Data Sources
+- `danubedata_parameter_groups` - List parameter groups, filterable by type and provider.
+- `danubedata_cache_snapshots` - List cache snapshots.
+- `danubedata_database_snapshots` - List database snapshots.
+- `danubedata_static_sites` - List static sites for a team.
+
+#### Attributes
+- `danubedata_cache.password` - Sensitive computed attribute exposing the cache password (from `GET /cache/{id}/connection-info`).
+- `danubedata_cache.connection_info` - Sensitive computed attribute exposing the cache connection URI.
+- `danubedata_cache.dns_enabled` - Optional bool for toggling public DNS via declarative state. Out-of-band DNS changes are not detected until re-applied (API limitation).
+- `danubedata_database.password` - Sensitive computed attribute exposing the root password.
+- `danubedata_database.connection_info` - Sensitive computed attribute exposing the database connection URI.
+- `danubedata_database.dns_enabled` - Optional bool for toggling public DNS (same limitation as cache).
+- `danubedata_vps.password` - Now `Optional + Computed`: always populated after provisioning from `GET /vps/{id}/password`.
+
+### Design decisions
+- **Not added to the provider** (left to CLI/CI by design):
+  - Lifecycle actions: `vps start|stop|reboot|reinstall`, `cache start|stop`, `database start|stop`.
+  - Snapshot restore/clone (one-shot recovery operations).
+  - Serverless deploy triggers (CI/CD concern).
+  - Metrics/status/usage endpoints (read-only telemetry).
+  - Access key rotation (handled via `terraform taint`).
+
 ## [0.1.0] - 2025-01-19
 
 ### Added

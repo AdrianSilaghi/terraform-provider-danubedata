@@ -154,8 +154,9 @@ func (r *VpsResource) Schema(ctx context.Context, req resource.SchemaRequest, re
 				Optional:    true,
 			},
 			"password": schema.StringAttribute{
-				Description: "Root password (required if auth_method is 'password'). Must be at least 12 characters.",
+				Description: "Root password. When auth_method is 'password' this must be supplied and be at least 12 characters; otherwise it is populated by the API after provisioning.",
 				Optional:    true,
+				Computed:    true,
 				Sensitive:   true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(12),
@@ -344,6 +345,7 @@ func (r *VpsResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 
 	r.mapVpsToState(vps, &data)
+	r.fetchVpsPassword(ctx, vps.ID, &data)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -366,6 +368,7 @@ func (r *VpsResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 	}
 
 	r.mapVpsToState(vps, &data)
+	r.fetchVpsPassword(ctx, vps.ID, &data)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -459,6 +462,7 @@ func (r *VpsResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		}
 
 		r.mapVpsToState(vps, &data)
+		r.fetchVpsPassword(ctx, vps.ID, &data)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -618,4 +622,27 @@ func (r *VpsResource) mapVpsToState(vps *client.VpsInstance, data *VpsResourceMo
 	if vps.SSHKeyID != nil {
 		data.SSHKeyID = types.StringValue(*vps.SSHKeyID)
 	}
+}
+
+// fetchVpsPassword populates the password field from the API only when it is not already
+// user-supplied. The VPS password endpoint is only available once the instance is running;
+// failures are logged and tolerated so that incomplete state doesn't block reconciliation.
+func (r *VpsResource) fetchVpsPassword(ctx context.Context, id string, data *VpsResourceModel) {
+	// Only fetch if the password was not user-supplied; otherwise Read would overwrite
+	// the user's chosen password with whatever the API reports, causing perpetual drift.
+	if !data.Password.IsNull() && !data.Password.IsUnknown() {
+		return
+	}
+	creds, err := r.client.GetVpsPassword(ctx, id)
+	if err != nil {
+		tflog.Debug(ctx, "VPS password not yet available", map[string]interface{}{
+			"id":    id,
+			"error": err.Error(),
+		})
+		if data.Password.IsUnknown() {
+			data.Password = types.StringNull()
+		}
+		return
+	}
+	data.Password = types.StringValue(creds.Password)
 }
