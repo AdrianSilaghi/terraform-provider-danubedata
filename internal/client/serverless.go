@@ -8,48 +8,64 @@ import (
 
 // ServerlessContainer represents a serverless container from the API
 type ServerlessContainer struct {
-	ID                    string            `json:"id"`
-	Name                  string            `json:"name"`
-	Status                string            `json:"status"`
-	ResourceProfile       string            `json:"resource_profile"`
-	DeploymentType        string            `json:"deployment_type"`
-	ImageURL              string            `json:"image_url"`
-	GitRepository         string            `json:"git_repository"`
-	GitBranch             string            `json:"git_branch"`
-	Port                  int               `json:"port"`
-	MinInstances          int               `json:"min_instances"`
-	MaxInstances          int               `json:"max_instances"`
-	EnvironmentVariables  map[string]string `json:"environment_variables"`
-	URL                   string            `json:"url"`
-	CurrentMonthCostCents int               `json:"current_month_cost_cents"`
-	CreatedAt             string            `json:"created_at"`
-	UpdatedAt             string            `json:"updated_at"`
-	TeamID                int               `json:"team_id"`
-	UserID                int               `json:"user_id"`
+	ID                   string            `json:"id"`
+	TeamID               int               `json:"team_id"`
+	UserID               int               `json:"user_id"`
+	Name                 string            `json:"name"`
+	Status               string            `json:"status"`
+	ResourceProfile      string            `json:"resource_profile"`
+	DeploymentType       string            `json:"deployment_type"`
+	SourceType           *string           `json:"source_type"`
+	Image                *string           `json:"image"`
+	ImageTag             string            `json:"image_tag"`
+	RepositoryURL        *string           `json:"repository_url"`
+	RepositoryBranch     string            `json:"repository_branch"`
+	GitAuthType          string            `json:"git_auth_type"`
+	Port                 int               `json:"port"`
+	MinScale             int               `json:"min_scale"`
+	MaxScale             int               `json:"max_scale"`
+	EnvironmentVariables map[string]string `json:"environment_variables"`
+	URL                  string            `json:"url"`
+	CreatedAt            string            `json:"created_at"`
+	UpdatedAt            string            `json:"updated_at"`
+
+	// MonthlyCost is not a container column. It is the sibling `monthly_cost`
+	// field (current_month_cost_cents / 100) the show endpoint returns
+	// alongside `container`; GetServerless copies it on after decoding.
+	MonthlyCost float64 `json:"-"`
 }
 
 // CreateServerlessRequest represents a request to create a serverless container
 type CreateServerlessRequest struct {
 	Name                 string            `json:"name"`
-	ResourceProfile      string            `json:"resource_profile"`
 	DeploymentType       string            `json:"deployment_type"`
-	ImageURL             string            `json:"image_url,omitempty"`
-	GitRepository        string            `json:"git_repository,omitempty"`
-	GitBranch            string            `json:"git_branch,omitempty"`
+	ResourceProfile      string            `json:"resource_profile,omitempty"`
+	Image                string            `json:"image,omitempty"`
+	ImageTag             string            `json:"image_tag,omitempty"`
+	RepositoryURL        string            `json:"repository_url,omitempty"`
+	RepositoryBranch     string            `json:"repository_branch,omitempty"`
+	SourceType           string            `json:"source_type,omitempty"`
+	GitAuthType          string            `json:"git_auth_type,omitempty"`
+	GitCredentials       string            `json:"git_credentials,omitempty"`
 	Port                 int               `json:"port,omitempty"`
-	MinInstances         int               `json:"min_instances,omitempty"`
-	MaxInstances         int               `json:"max_instances,omitempty"`
+	MinScale             int               `json:"min_scale,omitempty"`
+	MaxScale             int               `json:"max_scale,omitempty"`
 	EnvironmentVariables map[string]string `json:"environment_variables,omitempty"`
 }
 
 // UpdateServerlessRequest represents a request to update a serverless container
 type UpdateServerlessRequest struct {
 	ResourceProfile      string            `json:"resource_profile,omitempty"`
-	ImageURL             string            `json:"image_url,omitempty"`
-	GitBranch            string            `json:"git_branch,omitempty"`
+	Image                string            `json:"image,omitempty"`
+	ImageTag             string            `json:"image_tag,omitempty"`
+	RepositoryURL        string            `json:"repository_url,omitempty"`
+	RepositoryBranch     string            `json:"repository_branch,omitempty"`
+	SourceType           string            `json:"source_type,omitempty"`
+	GitAuthType          string            `json:"git_auth_type,omitempty"`
+	GitCredentials       string            `json:"git_credentials,omitempty"`
 	Port                 int               `json:"port,omitempty"`
-	MinInstances         *int              `json:"min_instances,omitempty"`
-	MaxInstances         *int              `json:"max_instances,omitempty"`
+	MinScale             *int              `json:"min_scale,omitempty"`
+	MaxScale             *int              `json:"max_scale,omitempty"`
 	EnvironmentVariables map[string]string `json:"environment_variables,omitempty"`
 }
 
@@ -86,6 +102,7 @@ func (c *Client) GetServerless(ctx context.Context, id string) (*ServerlessConta
 	}
 	container := resp.Container
 	container.URL = resp.URL
+	container.MonthlyCost = resp.MonthlyCost
 	return &container, nil
 }
 

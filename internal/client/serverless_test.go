@@ -24,11 +24,14 @@ func TestClient_CreateServerless(t *testing.T) {
 		if req.Name != "my-app" {
 			t.Errorf("Name = %v, want my-app", req.Name)
 		}
-		if req.DeploymentType != "docker" {
-			t.Errorf("DeploymentType = %v, want docker", req.DeploymentType)
+		if req.DeploymentType != "docker_image" {
+			t.Errorf("DeploymentType = %v, want docker_image", req.DeploymentType)
 		}
-		if req.ImageURL != "nginx:latest" {
-			t.Errorf("ImageURL = %v, want nginx:latest", req.ImageURL)
+		if req.Image != "nginx" {
+			t.Errorf("Image = %v, want nginx", req.Image)
+		}
+		if req.ImageTag != "latest" {
+			t.Errorf("ImageTag = %v, want latest", req.ImageTag)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -38,12 +41,13 @@ func TestClient_CreateServerless(t *testing.T) {
 			Container: ServerlessContainer{
 				ID:             "srv-123",
 				Name:           "my-app",
-				Status:         "creating",
-				DeploymentType: "docker",
-				ImageURL:       "nginx:latest",
+				Status:         "pending",
+				DeploymentType: "docker_image",
+				Image:          strPtr("nginx"),
+				ImageTag:       "latest",
 				Port:           80,
-				MinInstances:   0,
-				MaxInstances:   10,
+				MinScale:       0,
+				MaxScale:       10,
 				URL:            "https://my-app.serverless.danubedata.ro",
 			},
 		})
@@ -53,12 +57,13 @@ func TestClient_CreateServerless(t *testing.T) {
 	c := newTestClient(server)
 	container, err := c.CreateServerless(context.Background(), CreateServerlessRequest{
 		Name:            "my-app",
+		DeploymentType:  "docker_image",
 		ResourceProfile: "small",
-		DeploymentType:  "docker",
-		ImageURL:        "nginx:latest",
+		Image:           "nginx",
+		ImageTag:        "latest",
 		Port:            80,
-		MinInstances:    0,
-		MaxInstances:    10,
+		MinScale:        0,
+		MaxScale:        10,
 	})
 
 	if err != nil {
@@ -70,8 +75,8 @@ func TestClient_CreateServerless(t *testing.T) {
 	if container.Name != "my-app" {
 		t.Errorf("Name = %v, want my-app", container.Name)
 	}
-	if container.DeploymentType != "docker" {
-		t.Errorf("DeploymentType = %v, want docker", container.DeploymentType)
+	if container.DeploymentType != "docker_image" {
+		t.Errorf("DeploymentType = %v, want docker_image", container.DeploymentType)
 	}
 }
 
@@ -90,11 +95,12 @@ func TestClient_GetServerless(t *testing.T) {
 				ID:             "srv-123",
 				Name:           "my-app",
 				Status:         "running",
-				DeploymentType: "docker",
-				ImageURL:       "nginx:latest",
+				DeploymentType: "docker_image",
+				Image:          strPtr("nginx"),
+				ImageTag:       "latest",
 				Port:           80,
-				MinInstances:   0,
-				MaxInstances:   10,
+				MinScale:       0,
+				MaxScale:       10,
 				EnvironmentVariables: map[string]string{
 					"ENV": "production",
 				},
@@ -120,8 +126,45 @@ func TestClient_GetServerless(t *testing.T) {
 	if container.URL != "https://my-app.serverless.danubedata.ro" {
 		t.Errorf("URL = %v, want https://my-app.serverless.danubedata.ro", container.URL)
 	}
+	if container.MonthlyCost != 4.99 {
+		t.Errorf("MonthlyCost = %v, want 4.99", container.MonthlyCost)
+	}
 	if container.EnvironmentVariables["ENV"] != "production" {
 		t.Errorf("EnvironmentVariables[ENV] = %v, want production", container.EnvironmentVariables["ENV"])
+	}
+}
+
+// TestClient_GetServerless_IgnoresSensitiveFields verifies that even if the
+// API were to include webhook_secret / git_credentials_encrypted / api_key
+// in a response body (they should not - the model hides them), the client
+// has nowhere to decode them into: ServerlessContainer declares no such
+// fields, so they can never reach Terraform state.
+func TestClient_GetServerless_IgnoresSensitiveFields(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"container": {
+				"id": "srv-123",
+				"name": "my-app",
+				"status": "running",
+				"deployment_type": "git_repository",
+				"webhook_secret": "should-never-surface",
+				"git_credentials_encrypted": "should-never-surface",
+				"api_key": "should-never-surface"
+			},
+			"url": "https://my-app.serverless.danubedata.ro",
+			"monthly_cost": 0
+		}`))
+	})
+	defer server.Close()
+
+	c := newTestClient(server)
+	container, err := c.GetServerless(context.Background(), "srv-123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if container.ID != "srv-123" {
+		t.Errorf("ID = %v, want srv-123", container.ID)
 	}
 }
 
@@ -203,32 +246,32 @@ func TestClient_UpdateServerless(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("failed to decode request: %v", err)
 		}
-		if req.MaxInstances == nil || *req.MaxInstances != 20 {
-			t.Errorf("MaxInstances = %v, want 20", req.MaxInstances)
+		if req.MaxScale == nil || *req.MaxScale != 20 {
+			t.Errorf("MaxScale = %v, want 20", req.MaxScale)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(showServerlessResponse{
 			Container: ServerlessContainer{
-				ID:           "srv-123",
-				Name:         "my-app",
-				MaxInstances: 20,
+				ID:       "srv-123",
+				Name:     "my-app",
+				MaxScale: 20,
 			},
 		})
 	})
 	defer server.Close()
 
 	c := newTestClient(server)
-	maxInstances := 20
+	maxScale := 20
 	container, err := c.UpdateServerless(context.Background(), "srv-123", UpdateServerlessRequest{
-		MaxInstances: &maxInstances,
+		MaxScale: &maxScale,
 	})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if container.MaxInstances != 20 {
-		t.Errorf("MaxInstances = %v, want 20", container.MaxInstances)
+	if container.MaxScale != 20 {
+		t.Errorf("MaxScale = %v, want 20", container.MaxScale)
 	}
 }
 
@@ -285,14 +328,20 @@ func TestClient_CreateServerless_WithGit(t *testing.T) {
 			t.Fatalf("failed to decode request: %v", err)
 		}
 
-		if req.DeploymentType != "git" {
-			t.Errorf("DeploymentType = %v, want git", req.DeploymentType)
+		if req.DeploymentType != "git_repository" {
+			t.Errorf("DeploymentType = %v, want git_repository", req.DeploymentType)
 		}
-		if req.GitRepository != "https://github.com/user/repo" {
-			t.Errorf("GitRepository = %v, want https://github.com/user/repo", req.GitRepository)
+		if req.RepositoryURL != "https://github.com/user/repo" {
+			t.Errorf("RepositoryURL = %v, want https://github.com/user/repo", req.RepositoryURL)
 		}
-		if req.GitBranch != "main" {
-			t.Errorf("GitBranch = %v, want main", req.GitBranch)
+		if req.RepositoryBranch != "main" {
+			t.Errorf("RepositoryBranch = %v, want main", req.RepositoryBranch)
+		}
+		if req.SourceType != "dockerfile" {
+			t.Errorf("SourceType = %v, want dockerfile", req.SourceType)
+		}
+		if req.GitAuthType != "none" {
+			t.Errorf("GitAuthType = %v, want none", req.GitAuthType)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -300,12 +349,14 @@ func TestClient_CreateServerless_WithGit(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(createServerlessResponse{
 			Message: "Container created",
 			Container: ServerlessContainer{
-				ID:             "srv-124",
-				Name:           "git-app",
-				Status:         "building",
-				DeploymentType: "git",
-				GitRepository:  "https://github.com/user/repo",
-				GitBranch:      "main",
+				ID:               "srv-124",
+				Name:             "git-app",
+				Status:           "building",
+				DeploymentType:   "git_repository",
+				SourceType:       strPtr("dockerfile"),
+				RepositoryURL:    strPtr("https://github.com/user/repo"),
+				RepositoryBranch: "main",
+				GitAuthType:      "none",
 			},
 		})
 	})
@@ -313,21 +364,23 @@ func TestClient_CreateServerless_WithGit(t *testing.T) {
 
 	c := newTestClient(server)
 	container, err := c.CreateServerless(context.Background(), CreateServerlessRequest{
-		Name:           "git-app",
-		DeploymentType: "git",
-		GitRepository:  "https://github.com/user/repo",
-		GitBranch:      "main",
-		Port:           8080,
+		Name:             "git-app",
+		DeploymentType:   "git_repository",
+		RepositoryURL:    "https://github.com/user/repo",
+		RepositoryBranch: "main",
+		SourceType:       "dockerfile",
+		GitAuthType:      "none",
+		Port:             8080,
 	})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if container.DeploymentType != "git" {
-		t.Errorf("DeploymentType = %v, want git", container.DeploymentType)
+	if container.DeploymentType != "git_repository" {
+		t.Errorf("DeploymentType = %v, want git_repository", container.DeploymentType)
 	}
-	if container.GitRepository != "https://github.com/user/repo" {
-		t.Errorf("GitRepository = %v, want https://github.com/user/repo", container.GitRepository)
+	if container.RepositoryURL == nil || *container.RepositoryURL != "https://github.com/user/repo" {
+		t.Errorf("RepositoryURL = %v, want https://github.com/user/repo", container.RepositoryURL)
 	}
 }
 
@@ -352,7 +405,7 @@ func TestClient_CreateServerless_WithEnvVars(t *testing.T) {
 			Container: ServerlessContainer{
 				ID:     "srv-125",
 				Name:   "env-app",
-				Status: "creating",
+				Status: "pending",
 				EnvironmentVariables: map[string]string{
 					"DB_HOST": "localhost",
 					"DB_PORT": "5432",
@@ -365,8 +418,9 @@ func TestClient_CreateServerless_WithEnvVars(t *testing.T) {
 	c := newTestClient(server)
 	container, err := c.CreateServerless(context.Background(), CreateServerlessRequest{
 		Name:           "env-app",
-		DeploymentType: "docker",
-		ImageURL:       "myapp:latest",
+		DeploymentType: "docker_image",
+		Image:          "myapp",
+		ImageTag:       "latest",
 		EnvironmentVariables: map[string]string{
 			"DB_HOST": "localhost",
 			"DB_PORT": "5432",

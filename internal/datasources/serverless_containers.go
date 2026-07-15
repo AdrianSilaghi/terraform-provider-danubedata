@@ -22,18 +22,18 @@ type ServerlessContainersDataSourceModel struct {
 }
 
 type ServerlessContainerModel struct {
-	ID             types.String `tfsdk:"id"`
-	Name           types.String `tfsdk:"name"`
-	Status         types.String `tfsdk:"status"`
-	DeploymentType types.String `tfsdk:"deployment_type"`
-	ImageURL       types.String `tfsdk:"image_url"`
-	GitRepository  types.String `tfsdk:"git_repository"`
-	GitBranch      types.String `tfsdk:"git_branch"`
-	URL            types.String `tfsdk:"url"`
-	Port           types.Int64  `tfsdk:"port"`
-	MinInstances   types.Int64  `tfsdk:"min_instances"`
-	MaxInstances   types.Int64  `tfsdk:"max_instances"`
-	CreatedAt      types.String `tfsdk:"created_at"`
+	ID               types.String `tfsdk:"id"`
+	Name             types.String `tfsdk:"name"`
+	Status           types.String `tfsdk:"status"`
+	DeploymentType   types.String `tfsdk:"deployment_type"`
+	Image            types.String `tfsdk:"image"`
+	RepositoryURL    types.String `tfsdk:"repository_url"`
+	RepositoryBranch types.String `tfsdk:"repository_branch"`
+	URL              types.String `tfsdk:"url"`
+	Port             types.Int64  `tfsdk:"port"`
+	MinScale         types.Int64  `tfsdk:"min_scale"`
+	MaxScale         types.Int64  `tfsdk:"max_scale"`
+	CreatedAt        types.String `tfsdk:"created_at"`
 }
 
 func NewServerlessContainersDataSource() datasource.DataSource {
@@ -66,19 +66,19 @@ func (d *ServerlessContainersDataSource) Schema(ctx context.Context, req datasou
 							Computed:    true,
 						},
 						"deployment_type": schema.StringAttribute{
-							Description: "Deployment type (docker or git).",
+							Description: "Deployment type (docker_image, git_repository, or zip_upload).",
 							Computed:    true,
 						},
-						"image_url": schema.StringAttribute{
-							Description: "Docker image URL (for docker deployment).",
+						"image": schema.StringAttribute{
+							Description: "Container image reference (for docker_image deployments).",
 							Computed:    true,
 						},
-						"git_repository": schema.StringAttribute{
-							Description: "Git repository URL (for git deployment).",
+						"repository_url": schema.StringAttribute{
+							Description: "Git repository URL (for git_repository deployments).",
 							Computed:    true,
 						},
-						"git_branch": schema.StringAttribute{
-							Description: "Git branch (for git deployment).",
+						"repository_branch": schema.StringAttribute{
+							Description: "Git branch (for git_repository deployments).",
 							Computed:    true,
 						},
 						"url": schema.StringAttribute{
@@ -89,11 +89,11 @@ func (d *ServerlessContainersDataSource) Schema(ctx context.Context, req datasou
 							Description: "Container port.",
 							Computed:    true,
 						},
-						"min_instances": schema.Int64Attribute{
+						"min_scale": schema.Int64Attribute{
 							Description: "Minimum number of instances.",
 							Computed:    true,
 						},
-						"max_instances": schema.Int64Attribute{
+						"max_scale": schema.Int64Attribute{
 							Description: "Maximum number of instances.",
 							Computed:    true,
 						},
@@ -145,18 +145,28 @@ func (d *ServerlessContainersDataSource) Read(ctx context.Context, req datasourc
 	data.Containers = make([]ServerlessContainerModel, len(containers))
 	for i, c := range containers {
 		data.Containers[i] = ServerlessContainerModel{
-			ID:             types.StringValue(c.ID),
-			Name:           types.StringValue(c.Name),
-			Status:         types.StringValue(c.Status),
-			DeploymentType: types.StringValue(c.DeploymentType),
-			ImageURL:       types.StringValue(c.ImageURL),
-			GitRepository:  types.StringValue(c.GitRepository),
-			GitBranch:      types.StringValue(c.GitBranch),
-			URL:            types.StringValue(c.URL),
-			Port:           types.Int64Value(int64(c.Port)),
-			MinInstances:   types.Int64Value(int64(c.MinInstances)),
-			MaxInstances:   types.Int64Value(int64(c.MaxInstances)),
-			CreatedAt:      types.StringValue(c.CreatedAt),
+			ID:               types.StringValue(c.ID),
+			Name:             types.StringValue(c.Name),
+			Status:           types.StringValue(c.Status),
+			DeploymentType:   types.StringValue(c.DeploymentType),
+			RepositoryBranch: types.StringValue(c.RepositoryBranch),
+			URL:              types.StringValue(c.URL),
+			Port:             types.Int64Value(int64(c.Port)),
+			MinScale:         types.Int64Value(int64(c.MinScale)),
+			MaxScale:         types.Int64Value(int64(c.MaxScale)),
+			CreatedAt:        types.StringValue(c.CreatedAt),
+		}
+
+		if c.Image != nil {
+			data.Containers[i].Image = types.StringValue(*c.Image)
+		} else {
+			data.Containers[i].Image = types.StringNull()
+		}
+
+		if c.RepositoryURL != nil {
+			data.Containers[i].RepositoryURL = types.StringValue(*c.RepositoryURL)
+		} else {
+			data.Containers[i].RepositoryURL = types.StringNull()
 		}
 	}
 

@@ -30,6 +30,9 @@ func TestClient_CreateFirewall(t *testing.T) {
 		if req.Rules[0].Action != "allow" {
 			t.Errorf("Rules[0].Action = %v, want allow", req.Rules[0].Action)
 		}
+		if req.Rules[0].Order != 100 {
+			t.Errorf("Rules[0].Order = %v, want 100", req.Rules[0].Order)
+		}
 
 		portStart := 22
 		portEnd := 22
@@ -38,10 +41,9 @@ func TestClient_CreateFirewall(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(createFirewallResponse{
 			Message: "Firewall created",
 			Firewall: Firewall{
-				ID:            "fw-123",
-				Name:          "my-firewall",
-				Status:        "active",
-				DefaultAction: "deny",
+				ID:     "fw-123",
+				Name:   "my-firewall",
+				Status: "active",
 				Rules: []FirewallRule{
 					{
 						ID:             "rule-1",
@@ -51,7 +53,7 @@ func TestClient_CreateFirewall(t *testing.T) {
 						PortRangeStart: &portStart,
 						PortRangeEnd:   &portEnd,
 						SourceIPs:      []string{"0.0.0.0/0"},
-						Priority:       100,
+						Order:          100,
 					},
 				},
 			},
@@ -63,8 +65,7 @@ func TestClient_CreateFirewall(t *testing.T) {
 	portStart := 22
 	portEnd := 22
 	fw, err := c.CreateFirewall(context.Background(), CreateFirewallRequest{
-		Name:          "my-firewall",
-		DefaultAction: "deny",
+		Name: "my-firewall",
 		Rules: []CreateFirewallRuleRequest{
 			{
 				Action:         "allow",
@@ -73,6 +74,7 @@ func TestClient_CreateFirewall(t *testing.T) {
 				PortRangeStart: &portStart,
 				PortRangeEnd:   &portEnd,
 				SourceIPs:      []string{"0.0.0.0/0"},
+				Order:          100,
 			},
 		},
 	})
@@ -89,6 +91,9 @@ func TestClient_CreateFirewall(t *testing.T) {
 	if fw.Rules[0].Action != "allow" {
 		t.Errorf("Rules[0].Action = %v, want allow", fw.Rules[0].Action)
 	}
+	if fw.Rules[0].Order != 100 {
+		t.Errorf("Rules[0].Order = %v, want 100", fw.Rules[0].Order)
+	}
 }
 
 func TestClient_GetFirewall(t *testing.T) {
@@ -103,11 +108,10 @@ func TestClient_GetFirewall(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(showFirewallResponse{
 			Firewall: Firewall{
-				ID:            "fw-123",
-				Name:          "my-firewall",
-				Status:        "active",
-				DefaultAction: "deny",
-				Rules:         []FirewallRule{},
+				ID:     "fw-123",
+				Name:   "my-firewall",
+				Status: "active",
+				Rules:  []FirewallRule{},
 			},
 		})
 	})
@@ -122,8 +126,8 @@ func TestClient_GetFirewall(t *testing.T) {
 	if fw.ID != "fw-123" {
 		t.Errorf("ID = %v, want fw-123", fw.ID)
 	}
-	if fw.DefaultAction != "deny" {
-		t.Errorf("DefaultAction = %v, want deny", fw.DefaultAction)
+	if fw.Status != "active" {
+		t.Errorf("Status = %v, want active", fw.Status)
 	}
 }
 
@@ -206,6 +210,15 @@ func TestClient_UpdateFirewall(t *testing.T) {
 		if req.Name != "updated-firewall" {
 			t.Errorf("Name = %v, want updated-firewall", req.Name)
 		}
+		if len(req.Rules) != 1 {
+			t.Fatalf("Rules count = %v, want 1", len(req.Rules))
+		}
+		if req.Rules[0].Action != "deny" {
+			t.Errorf("Rules[0].Action = %v, want deny", req.Rules[0].Action)
+		}
+		if req.Rules[0].Order != 50 {
+			t.Errorf("Rules[0].Order = %v, want 50", req.Rules[0].Order)
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(showFirewallResponse{
@@ -220,6 +233,14 @@ func TestClient_UpdateFirewall(t *testing.T) {
 	c := newTestClient(server)
 	fw, err := c.UpdateFirewall(context.Background(), "fw-123", UpdateFirewallRequest{
 		Name: "updated-firewall",
+		Rules: []CreateFirewallRuleRequest{
+			{
+				Action:    "deny",
+				Direction: "outbound",
+				Protocol:  "any",
+				Order:     50,
+			},
+		},
 	})
 
 	if err != nil {

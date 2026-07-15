@@ -20,7 +20,6 @@ func TestAccFirewallResource_basic(t *testing.T) {
 				Config: testAccFirewallResourceConfig_basic(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_firewall.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_firewall.test", "default_action", "deny"),
 					resource.TestCheckResourceAttrSet("danubedata_firewall.test", "id"),
 					resource.TestCheckResourceAttrSet("danubedata_firewall.test", "status"),
 				),
@@ -101,8 +100,7 @@ func testAccFirewallResourceConfig_basic(name string) string {
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_firewall" "test" {
-  name           = %q
-  default_action = "deny"
+  name = %q
 }
 `, name),
 	)
@@ -113,8 +111,7 @@ func testAccFirewallResourceConfig_withRules(name string) string {
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_firewall" "test" {
-  name           = %q
-  default_action = "deny"
+  name = %q
 
   rules {
     name             = "Allow SSH"
@@ -124,7 +121,7 @@ resource "danubedata_firewall" "test" {
     port_range_start = 22
     port_range_end   = 22
     source_ips       = ["0.0.0.0/0"]
-    priority         = 100
+    order            = 100
   }
 
   rules {
@@ -135,7 +132,7 @@ resource "danubedata_firewall" "test" {
     port_range_start = 80
     port_range_end   = 80
     source_ips       = ["0.0.0.0/0"]
-    priority         = 200
+    order            = 200
   }
 }
 `, name),
@@ -147,9 +144,8 @@ func testAccFirewallResourceConfig_withDescription(name, description string) str
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_firewall" "test" {
-  name           = %q
-  description    = %q
-  default_action = "deny"
+  name        = %q
+  description = %q
 }
 `, name, description),
 	)

@@ -44,8 +44,6 @@ resource "danubedata_cache" "sessions" {
   name             = "${var.environment}-sessions"
   cache_provider   = "redis"
   resource_profile = "small"
-  memory_size_mb   = 512
-  cpu_cores        = 1
   datacenter       = "fsn1"
 
   timeouts {
@@ -60,9 +58,7 @@ resource "danubedata_database" "main" {
   engine           = "postgresql"
   database_name    = "app"
   resource_profile = "small"
-  storage_size_gb  = 20
-  memory_size_mb   = 2048
-  cpu_cores        = 2
+  storage_size_gb  = 20 # optional: grows storage beyond the plan minimum (never shrinks)
   datacenter       = "fsn1"
 
   timeouts {

@@ -20,7 +20,7 @@ func TestAccServerlessResource_basic(t *testing.T) {
 				Config: testAccServerlessResourceConfig_basic(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_serverless.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_serverless.test", "deployment_type", "docker"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "deployment_type", "docker_image"),
 					resource.TestCheckResourceAttrSet("danubedata_serverless.test", "id"),
 					resource.TestCheckResourceAttrSet("danubedata_serverless.test", "status"),
 					resource.TestCheckResourceAttrSet("danubedata_serverless.test", "url"),
@@ -47,8 +47,9 @@ func TestAccServerlessResource_docker(t *testing.T) {
 				Config: testAccServerlessResourceConfig_docker(name),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_serverless.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_serverless.test", "deployment_type", "docker"),
-					resource.TestCheckResourceAttr("danubedata_serverless.test", "image_url", "nginx:latest"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "deployment_type", "docker_image"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "image", "nginx"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "image_tag", "latest"),
 					resource.TestCheckResourceAttr("danubedata_serverless.test", "port", "80"),
 				),
 			},
@@ -86,8 +87,8 @@ func TestAccServerlessResource_withScaling(t *testing.T) {
 				Config: testAccServerlessResourceConfig_withScaling(name, 1, 5),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_serverless.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_serverless.test", "min_instances", "1"),
-					resource.TestCheckResourceAttr("danubedata_serverless.test", "max_instances", "5"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "min_scale", "1"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "max_scale", "5"),
 				),
 			},
 		},
@@ -104,15 +105,37 @@ func TestAccServerlessResource_update(t *testing.T) {
 			{
 				Config: testAccServerlessResourceConfig_withScaling(name, 0, 5),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("danubedata_serverless.test", "min_instances", "0"),
-					resource.TestCheckResourceAttr("danubedata_serverless.test", "max_instances", "5"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "min_scale", "0"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "max_scale", "5"),
 				),
 			},
 			{
 				Config: testAccServerlessResourceConfig_withScaling(name, 1, 10),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("danubedata_serverless.test", "min_instances", "1"),
-					resource.TestCheckResourceAttr("danubedata_serverless.test", "max_instances", "10"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "min_scale", "1"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "max_scale", "10"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccServerlessResource_git(t *testing.T) {
+	name := acctest.RandomName("tf-srv")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccServerlessResourceConfig_git(name),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "name", name),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "deployment_type", "git_repository"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "repository_url", "https://github.com/danubedata/example-app"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "repository_branch", "main"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "source_type", "dockerfile"),
+					resource.TestCheckResourceAttr("danubedata_serverless.test", "git_auth_type", "none"),
 				),
 			},
 		},
@@ -125,8 +148,8 @@ func testAccServerlessResourceConfig_basic(name string) string {
 		fmt.Sprintf(`
 resource "danubedata_serverless" "test" {
   name            = %q
-  deployment_type = "docker"
-  image_url       = "nginx:latest"
+  deployment_type = "docker_image"
+  image           = "nginx"
   port            = 80
 
   timeouts {
@@ -145,11 +168,12 @@ func testAccServerlessResourceConfig_docker(name string) string {
 resource "danubedata_serverless" "test" {
   name             = %q
   resource_profile = "small"
-  deployment_type  = "docker"
-  image_url        = "nginx:latest"
+  deployment_type  = "docker_image"
+  image            = "nginx"
+  image_tag        = "latest"
   port             = 80
-  min_instances    = 0
-  max_instances    = 10
+  min_scale        = 0
+  max_scale        = 10
 
   timeouts {
     create = "10m"
@@ -166,8 +190,8 @@ func testAccServerlessResourceConfig_withEnvVars(name string) string {
 		fmt.Sprintf(`
 resource "danubedata_serverless" "test" {
   name            = %q
-  deployment_type = "docker"
-  image_url       = "nginx:latest"
+  deployment_type = "docker_image"
+  image           = "nginx"
   port            = 80
 
   environment_variables = {
@@ -184,17 +208,17 @@ resource "danubedata_serverless" "test" {
 	)
 }
 
-func testAccServerlessResourceConfig_withScaling(name string, minInstances, maxInstances int) string {
+func testAccServerlessResourceConfig_withScaling(name string, minScale, maxScale int) string {
 	return acctest.ConfigCompose(
 		acctest.ProviderConfig(),
 		fmt.Sprintf(`
 resource "danubedata_serverless" "test" {
   name            = %q
-  deployment_type = "docker"
-  image_url       = "nginx:latest"
+  deployment_type = "docker_image"
+  image           = "nginx"
   port            = 80
-  min_instances   = %d
-  max_instances   = %d
+  min_scale       = %d
+  max_scale       = %d
 
   timeouts {
     create = "10m"
@@ -202,6 +226,28 @@ resource "danubedata_serverless" "test" {
     delete = "10m"
   }
 }
-`, name, minInstances, maxInstances),
+`, name, minScale, maxScale),
+	)
+}
+
+func testAccServerlessResourceConfig_git(name string) string {
+	return acctest.ConfigCompose(
+		acctest.ProviderConfig(),
+		fmt.Sprintf(`
+resource "danubedata_serverless" "test" {
+  name              = %q
+  deployment_type   = "git_repository"
+  repository_url    = "https://github.com/danubedata/example-app"
+  repository_branch = "main"
+  source_type       = "dockerfile"
+  git_auth_type     = "none"
+  port              = 8080
+
+  timeouts {
+    create = "10m"
+    delete = "10m"
+  }
+}
+`, name),
 	)
 }

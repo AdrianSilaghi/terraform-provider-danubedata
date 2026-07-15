@@ -3,6 +3,7 @@ package datasources
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -61,7 +62,7 @@ func (d *VpsSnapshotsDataSource) Schema(ctx context.Context, req datasource.Sche
 							Computed:    true,
 						},
 						"status": schema.StringAttribute{
-							Description: "Current status of the snapshot (creating, ready, error).",
+							Description: "Current status of the snapshot (creating, ready, failed).",
 							Computed:    true,
 						},
 						"vps_instance_id": schema.StringAttribute{
@@ -120,7 +121,7 @@ func (d *VpsSnapshotsDataSource) Read(ctx context.Context, req datasource.ReadRe
 	data.Snapshots = make([]VpsSnapshotModel, len(snapshots))
 	for i, s := range snapshots {
 		data.Snapshots[i] = VpsSnapshotModel{
-			ID:            types.StringValue(s.ID),
+			ID:            types.StringValue(strconv.FormatInt(s.ID, 10)),
 			Name:          types.StringValue(s.Name),
 			Description:   types.StringValue(s.Description),
 			Status:        types.StringValue(s.Status),

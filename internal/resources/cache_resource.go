@@ -79,10 +79,10 @@ func (r *CacheResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$`),
-						"must be alphanumeric with hyphens, starting and ending with alphanumeric",
+						regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`),
+						"must be lowercase alphanumeric with hyphens (DNS compatible)",
 					),
-					stringvalidator.LengthBetween(1, 255),
+					stringvalidator.LengthBetween(2, 63),
 				},
 			},
 			"status": schema.StringAttribute{
@@ -102,18 +102,13 @@ func (r *CacheResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"resource_profile": schema.StringAttribute{
 				Description: "Resource profile for the cache (micro, small, medium, large).",
 				Required:    true,
-				Validators: []validator.String{
-					stringvalidator.OneOf("micro", "small", "medium", "large"),
-				},
 			},
 			"memory_size_mb": schema.Int64Attribute{
-				Description: "Memory size in MB. If not specified, determined by resource_profile.",
-				Optional:    true,
+				Description: "Memory size in MB. Derived from resource_profile.",
 				Computed:    true,
 			},
 			"cpu_cores": schema.Int64Attribute{
-				Description: "Number of CPU cores. If not specified, determined by resource_profile.",
-				Optional:    true,
+				Description: "Number of CPU cores. Derived from resource_profile.",
 				Computed:    true,
 			},
 			"version": schema.StringAttribute{
@@ -226,12 +221,10 @@ func (r *CacheResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	// Build create request
 	createReq := client.CreateCacheRequest{
-		Name:              data.Name.ValueString(),
-		Provider:          data.CacheProvider.ValueString(),
-		MemorySizeMB:      int(data.MemorySizeMB.ValueInt64()),
-		CPUCores:          int(data.CPUCores.ValueInt64()),
-		Datacenter:        data.Datacenter.ValueString(),
-		ResourceProfile:   data.ResourceProfile.ValueString(),
+		Name:            data.Name.ValueString(),
+		Provider:        data.CacheProvider.ValueString(),
+		Datacenter:      data.Datacenter.ValueString(),
+		ResourceProfile: data.ResourceProfile.ValueString(),
 	}
 
 	if !data.Version.IsNull() && !data.Version.IsUnknown() {
@@ -350,18 +343,6 @@ func (r *CacheResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	if !data.Name.Equal(state.Name) {
 		updateReq.Name = data.Name.ValueString()
-		hasChanges = true
-	}
-
-	if !data.MemorySizeMB.Equal(state.MemorySizeMB) {
-		memSize := int(data.MemorySizeMB.ValueInt64())
-		updateReq.MemorySizeMB = &memSize
-		hasChanges = true
-	}
-
-	if !data.CPUCores.Equal(state.CPUCores) {
-		cpuCores := int(data.CPUCores.ValueInt64())
-		updateReq.CPUCores = &cpuCores
 		hasChanges = true
 	}
 
@@ -535,7 +516,11 @@ func (r *CacheResource) mapCacheToState(cache *client.CacheInstance, data *Cache
 	data.ID = types.StringValue(cache.ID)
 	data.Name = types.StringValue(cache.Name)
 	data.Status = types.StringValue(cache.Status)
-	data.CacheProvider = types.StringValue(strings.ToLower(cache.Provider.Name))
+	cacheProviderType := cache.Provider.Type
+	if cacheProviderType == "" {
+		cacheProviderType = strings.ToLower(cache.Provider.Name)
+	}
+	data.CacheProvider = types.StringValue(cacheProviderType)
 	data.ResourceProfile = types.StringValue(cache.ResourceProfile)
 	data.MemorySizeMB = types.Int64Value(int64(cache.MemorySizeMB))
 	data.CPUCores = types.Int64Value(int64(cache.CPUCores))
@@ -575,8 +560,6 @@ func (r *CacheResource) mapCacheToState(cache *client.CacheInstance, data *Cache
 
 	if cache.ParameterGroupID != nil && *cache.ParameterGroupID != "" {
 		data.ParameterGroupID = types.StringValue(*cache.ParameterGroupID)
-	} else {
-		data.ParameterGroupID = types.StringNull()
 	}
 }
 

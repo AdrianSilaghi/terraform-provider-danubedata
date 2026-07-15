@@ -26,10 +26,10 @@ resource "danubedata_vps" "web" {
   auth_method = "ssh_key"
   ssh_key_id  = danubedata_ssh_key.main.id
 
-  # Optional: specify custom resources
-  # cpu_cores       = 2
-  # memory_size_gb  = 4
-  # storage_size_gb = 50
+  # Optional: pick a resource profile (defaults to "nano_shared" if omitted).
+  # cpu_cores, memory_size_gb, and storage_size_gb are read-only outputs
+  # derived from the profile, not inputs.
+  # resource_profile = "micro_shared"
 
   timeouts {
     create = "15m"

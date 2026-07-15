@@ -5,15 +5,13 @@ import (
 	"fmt"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -31,15 +29,13 @@ type FirewallResource struct {
 }
 
 type FirewallResourceModel struct {
-	ID            types.String `tfsdk:"id"`
-	Name          types.String `tfsdk:"name"`
-	Description   types.String `tfsdk:"description"`
-	Status        types.String `tfsdk:"status"`
-	IsDefault     types.Bool   `tfsdk:"is_default"`
-	DefaultAction types.String `tfsdk:"default_action"`
-	Rules         types.List   `tfsdk:"rules"`
-	CreatedAt     types.String `tfsdk:"created_at"`
-	UpdatedAt     types.String `tfsdk:"updated_at"`
+	ID          types.String `tfsdk:"id"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	Status      types.String `tfsdk:"status"`
+	Rules       types.List   `tfsdk:"rules"`
+	CreatedAt   types.String `tfsdk:"created_at"`
+	UpdatedAt   types.String `tfsdk:"updated_at"`
 }
 
 type FirewallRuleModel struct {
@@ -51,7 +47,7 @@ type FirewallRuleModel struct {
 	PortRangeStart types.Int64  `tfsdk:"port_range_start"`
 	PortRangeEnd   types.Int64  `tfsdk:"port_range_end"`
 	SourceIPs      types.List   `tfsdk:"source_ips"`
-	Priority       types.Int64  `tfsdk:"priority"`
+	Order          types.Int64  `tfsdk:"order"`
 }
 
 func NewFirewallResource() resource.Resource {
@@ -85,21 +81,6 @@ func (r *FirewallResource) Schema(ctx context.Context, req resource.SchemaReques
 				Description: "Current status of the firewall (draft, active, deploying).",
 				Computed:    true,
 			},
-			"is_default": schema.BoolAttribute{
-				Description: "Whether this is the default firewall for the team.",
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(false),
-			},
-			"default_action": schema.StringAttribute{
-				Description: "Default action for traffic not matching any rule: 'drop' or 'accept'.",
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString("drop"),
-				Validators: []validator.String{
-					stringvalidator.OneOf("drop", "accept"),
-				},
-			},
 			"rules": schema.ListNestedAttribute{
 				Description: "List of firewall rules.",
 				Optional:    true,
@@ -114,10 +95,10 @@ func (r *FirewallResource) Schema(ctx context.Context, req resource.SchemaReques
 							Optional:    true,
 						},
 						"action": schema.StringAttribute{
-							Description: "Action to take: 'accept' or 'drop'.",
+							Description: "Action to take: 'allow' or 'deny'.",
 							Required:    true,
 							Validators: []validator.String{
-								stringvalidator.OneOf("accept", "drop"),
+								stringvalidator.OneOf("allow", "deny"),
 							},
 						},
 						"direction": schema.StringAttribute{
@@ -128,10 +109,10 @@ func (r *FirewallResource) Schema(ctx context.Context, req resource.SchemaReques
 							},
 						},
 						"protocol": schema.StringAttribute{
-							Description: "Protocol: 'tcp', 'udp', 'icmp', or 'any'.",
+							Description: "Protocol: 'tcp', 'udp', 'icmp', 'any', 'gre', or 'esp'.",
 							Required:    true,
 							Validators: []validator.String{
-								stringvalidator.OneOf("tcp", "udp", "icmp", "any"),
+								stringvalidator.OneOf("tcp", "udp", "icmp", "any", "gre", "esp"),
 							},
 						},
 						"port_range_start": schema.Int64Attribute{
@@ -147,8 +128,8 @@ func (r *FirewallResource) Schema(ctx context.Context, req resource.SchemaReques
 							Optional:    true,
 							ElementType: types.StringType,
 						},
-						"priority": schema.Int64Attribute{
-							Description: "Rule priority (lower numbers = higher priority).",
+						"order": schema.Int64Attribute{
+							Description: "Rule evaluation order (lower numbers are evaluated first).",
 							Optional:    true,
 						},
 					},
@@ -195,10 +176,8 @@ func (r *FirewallResource) Create(ctx context.Context, req resource.CreateReques
 	})
 
 	createReq := client.CreateFirewallRequest{
-		Name:          data.Name.ValueString(),
-		Description:   data.Description.ValueString(),
-		IsDefault:     data.IsDefault.ValueBool(),
-		DefaultAction: data.DefaultAction.ValueString(),
+		Name:        data.Name.ValueString(),
+		Description: data.Description.ValueString(),
 	}
 
 	// Convert rules
@@ -216,7 +195,7 @@ func (r *FirewallResource) Create(ctx context.Context, req resource.CreateReques
 				Action:    rule.Action.ValueString(),
 				Direction: rule.Direction.ValueString(),
 				Protocol:  rule.Protocol.ValueString(),
-				Priority:  int(rule.Priority.ValueInt64()),
+				Order:     int(rule.Order.ValueInt64()),
 			}
 
 			if !rule.PortRangeStart.IsNull() {
@@ -287,14 +266,44 @@ func (r *FirewallResource) Update(ctx context.Context, req resource.UpdateReques
 	})
 
 	updateReq := client.UpdateFirewallRequest{
-		Name:          data.Name.ValueString(),
-		Description:   data.Description.ValueString(),
-		DefaultAction: data.DefaultAction.ValueString(),
+		Name:        data.Name.ValueString(),
+		Description: data.Description.ValueString(),
 	}
 
-	if !data.IsDefault.IsNull() {
-		isDefault := data.IsDefault.ValueBool()
-		updateReq.IsDefault = &isDefault
+	// Convert rules
+	if !data.Rules.IsNull() && !data.Rules.IsUnknown() {
+		var rules []FirewallRuleModel
+		resp.Diagnostics.Append(data.Rules.ElementsAs(ctx, &rules, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		updateReq.Rules = make([]client.CreateFirewallRuleRequest, len(rules))
+		for i, rule := range rules {
+			ruleReq := client.CreateFirewallRuleRequest{
+				Name:      rule.Name.ValueString(),
+				Action:    rule.Action.ValueString(),
+				Direction: rule.Direction.ValueString(),
+				Protocol:  rule.Protocol.ValueString(),
+				Order:     int(rule.Order.ValueInt64()),
+			}
+
+			if !rule.PortRangeStart.IsNull() {
+				port := int(rule.PortRangeStart.ValueInt64())
+				ruleReq.PortRangeStart = &port
+			}
+			if !rule.PortRangeEnd.IsNull() {
+				port := int(rule.PortRangeEnd.ValueInt64())
+				ruleReq.PortRangeEnd = &port
+			}
+			if !rule.SourceIPs.IsNull() {
+				var sourceIPs []string
+				resp.Diagnostics.Append(rule.SourceIPs.ElementsAs(ctx, &sourceIPs, false)...)
+				ruleReq.SourceIPs = sourceIPs
+			}
+
+			updateReq.Rules[i] = ruleReq
+		}
 	}
 
 	firewall, err := r.client.UpdateFirewall(ctx, data.ID.ValueString(), updateReq)
@@ -338,8 +347,6 @@ func (r *FirewallResource) mapFirewallToState(ctx context.Context, firewall *cli
 	data.Name = types.StringValue(firewall.Name)
 	data.Description = types.StringValue(firewall.Description)
 	data.Status = types.StringValue(firewall.Status)
-	data.IsDefault = types.BoolValue(firewall.IsDefault)
-	data.DefaultAction = types.StringValue(firewall.DefaultAction)
 	data.CreatedAt = types.StringValue(firewall.CreatedAt)
 	data.UpdatedAt = types.StringValue(firewall.UpdatedAt)
 
@@ -375,7 +382,7 @@ func (r *FirewallResource) mapFirewallToState(ctx context.Context, firewall *cli
 					"port_range_start": types.Int64Type,
 					"port_range_end":   types.Int64Type,
 					"source_ips":       types.ListType{ElemType: types.StringType},
-					"priority":         types.Int64Type,
+					"order":            types.Int64Type,
 				},
 				map[string]attr.Value{
 					"id":               types.StringValue(rule.ID),
@@ -386,7 +393,7 @@ func (r *FirewallResource) mapFirewallToState(ctx context.Context, firewall *cli
 					"port_range_start": portStart,
 					"port_range_end":   portEnd,
 					"source_ips":       sourceIPsList,
-					"priority":         types.Int64Value(int64(rule.Priority)),
+					"order":            types.Int64Value(int64(rule.Order)),
 				},
 			)
 			ruleObjects[i] = ruleObj
@@ -403,7 +410,7 @@ func (r *FirewallResource) mapFirewallToState(ctx context.Context, firewall *cli
 					"port_range_start": types.Int64Type,
 					"port_range_end":   types.Int64Type,
 					"source_ips":       types.ListType{ElemType: types.StringType},
-					"priority":         types.Int64Type,
+					"order":            types.Int64Type,
 				},
 			},
 			ruleObjects,
@@ -421,7 +428,7 @@ func (r *FirewallResource) mapFirewallToState(ctx context.Context, firewall *cli
 				"port_range_start": types.Int64Type,
 				"port_range_end":   types.Int64Type,
 				"source_ips":       types.ListType{ElemType: types.StringType},
-				"priority":         types.Int64Type,
+				"order":            types.Int64Type,
 			},
 		})
 	}

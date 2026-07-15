@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
@@ -81,7 +82,7 @@ func (r *DatabaseSnapshotResource) Schema(ctx context.Context, req resource.Sche
 				},
 			},
 			"status": schema.StringAttribute{
-				Description: "Status of the snapshot (pending, completed, failed).",
+				Description: "Status of the snapshot (creating, ready, failed).",
 				Computed:    true,
 			},
 			"size_gb": schema.Float64Attribute{
@@ -152,12 +153,12 @@ func (r *DatabaseSnapshotResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	data.ID = types.StringValue(snapshot.ID)
+	data.ID = types.StringValue(strconv.FormatInt(snapshot.ID, 10))
 
-	if err := r.client.WaitForDatabaseSnapshotStatus(ctx, snapshot.ID, "completed", createTimeout); err != nil {
+	if err := r.client.WaitForDatabaseSnapshotStatus(ctx, snapshot.ID, "ready", createTimeout); err != nil {
 		resp.Diagnostics.AddError(
 			"Database snapshot failed to complete",
-			fmt.Sprintf("Snapshot %s did not complete: %s", snapshot.ID, err),
+			fmt.Sprintf("Snapshot %d did not complete: %s", snapshot.ID, err),
 		)
 		return
 	}
@@ -179,7 +180,13 @@ func (r *DatabaseSnapshotResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	snapshot, err := r.client.GetDatabaseSnapshot(ctx, data.ID.ValueString())
+	id, err := strconv.ParseInt(data.ID.ValueString(), 10, 64)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid database snapshot ID", err.Error())
+		return
+	}
+
+	snapshot, err := r.client.GetDatabaseSnapshot(ctx, id)
 	if err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
@@ -221,7 +228,13 @@ func (r *DatabaseSnapshotResource) Delete(ctx context.Context, req resource.Dele
 	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
 	defer cancel()
 
-	err := r.client.DeleteDatabaseSnapshot(ctx, data.ID.ValueString())
+	id, err := strconv.ParseInt(data.ID.ValueString(), 10, 64)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid database snapshot ID", err.Error())
+		return
+	}
+
+	err = r.client.DeleteDatabaseSnapshot(ctx, id)
 	if err != nil {
 		if client.IsNotFound(err) {
 			return
@@ -236,7 +249,7 @@ func (r *DatabaseSnapshotResource) ImportState(ctx context.Context, req resource
 }
 
 func (r *DatabaseSnapshotResource) mapSnapshotToState(snapshot *client.DatabaseSnapshot, data *DatabaseSnapshotResourceModel) {
-	data.ID = types.StringValue(snapshot.ID)
+	data.ID = types.StringValue(strconv.FormatInt(snapshot.ID, 10))
 	data.Name = types.StringValue(snapshot.Name)
 	data.Description = types.StringValue(snapshot.Description)
 	data.DatabaseInstanceID = types.StringValue(snapshot.DatabaseInstanceID)

@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -28,14 +30,22 @@ type StaticSiteDomainResource struct {
 type StaticSiteDomainResourceModel struct {
 	ID                 types.String `tfsdk:"id"`
 	StaticSiteID       types.String `tfsdk:"static_site_id"`
-	DomainID           types.Int64  `tfsdk:"domain_id"`
+	DomainID           types.String `tfsdk:"domain_id"`
 	Domain             types.String `tfsdk:"domain"`
-	Type               types.String `tfsdk:"type"`
-	Status             types.String `tfsdk:"status"`
-	VerificationRecord types.String `tfsdk:"verification_record"`
-	VerifiedAt         types.String `tfsdk:"verified_at"`
+	VerificationStatus types.String `tfsdk:"verification_status"`
+	TLSStatus          types.String `tfsdk:"tls_status"`
+	DeploymentStatus   types.String `tfsdk:"deployment_status"`
+	IsPrimary          types.Bool   `tfsdk:"is_primary"`
+	DNSInstructions    types.Object `tfsdk:"dns_instructions"`
 	CreatedAt          types.String `tfsdk:"created_at"`
-	UpdatedAt          types.String `tfsdk:"updated_at"`
+}
+
+// staticSiteDomainDNSInstructionsAttrTypes describes the object type of the dns_instructions attribute.
+var staticSiteDomainDNSInstructionsAttrTypes = map[string]attr.Type{
+	"record_type":  types.StringType,
+	"record_name":  types.StringType,
+	"record_value": types.StringType,
+	"instructions": types.StringType,
 }
 
 func NewStaticSiteDomainResource() resource.Resource {
@@ -48,7 +58,7 @@ func (r *StaticSiteDomainResource) Metadata(ctx context.Context, req resource.Me
 
 func (r *StaticSiteDomainResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a custom domain attached to a DanubeData static site. After the resource is created the domain is in `pending` status with a `verification_record` to add to DNS; verification is triggered out-of-band via `danube pages domains verify` once the DNS record is in place.",
+		Description: "Manages a custom domain attached to a DanubeData static site. After the resource is created the domain is in `pending` verification status; add the DNS record described in `dns_instructions` to prove ownership, then trigger verification out-of-band via `danube pages domains verify` once the record is in place.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "Composite identifier in the form {static_site_id}:{domain_id}.",
@@ -64,8 +74,8 @@ func (r *StaticSiteDomainResource) Schema(ctx context.Context, req resource.Sche
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"domain_id": schema.Int64Attribute{
-				Description: "Numeric ID of the domain attachment.",
+			"domain_id": schema.StringAttribute{
+				Description: "ID of the domain attachment.",
 				Computed:    true,
 			},
 			"domain": schema.StringAttribute{
@@ -75,28 +85,46 @@ func (r *StaticSiteDomainResource) Schema(ctx context.Context, req resource.Sche
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"type": schema.StringAttribute{
-				Description: "Domain type: default or custom.",
+			"verification_status": schema.StringAttribute{
+				Description: "DNS ownership verification status (pending, verifying, verified, failed).",
 				Computed:    true,
 			},
-			"status": schema.StringAttribute{
-				Description: "Status of the domain (pending, active, failed).",
+			"tls_status": schema.StringAttribute{
+				Description: "TLS certificate provisioning status for the domain (pending, provisioning, active, failed).",
 				Computed:    true,
 			},
-			"verification_record": schema.StringAttribute{
-				Description: "DNS record to configure for verification (CNAME). Empty after verification succeeds.",
+			"deployment_status": schema.StringAttribute{
+				Description: "Status of routing the domain to the site's active deployment (pending, deploying, active, failed).",
 				Computed:    true,
 			},
-			"verified_at": schema.StringAttribute{
-				Description: "Timestamp when the domain was verified, if any.",
+			"is_primary": schema.BoolAttribute{
+				Description: "Whether this is the primary domain for the site.",
 				Computed:    true,
+			},
+			"dns_instructions": schema.SingleNestedAttribute{
+				Description: "DNS record to add for ownership verification.",
+				Computed:    true,
+				Attributes: map[string]schema.Attribute{
+					"record_type": schema.StringAttribute{
+						Description: "DNS record type (e.g., TXT).",
+						Computed:    true,
+					},
+					"record_name": schema.StringAttribute{
+						Description: "DNS record name.",
+						Computed:    true,
+					},
+					"record_value": schema.StringAttribute{
+						Description: "DNS record value.",
+						Computed:    true,
+					},
+					"instructions": schema.StringAttribute{
+						Description: "Human-readable instructions for configuring the record.",
+						Computed:    true,
+					},
+				},
 			},
 			"created_at": schema.StringAttribute{
 				Description: "Timestamp when the domain attachment was created.",
-				Computed:    true,
-			},
-			"updated_at": schema.StringAttribute{
-				Description: "Timestamp when the domain attachment was last updated.",
 				Computed:    true,
 			},
 		},
@@ -139,7 +167,7 @@ func (r *StaticSiteDomainResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	r.mapDomainToState(siteID, domain, &data)
+	r.mapDomainToState(siteID, domain, &data, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -161,7 +189,7 @@ func (r *StaticSiteDomainResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	r.mapDomainToState(siteID, domain, &data)
+	r.mapDomainToState(siteID, domain, &data, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -184,7 +212,7 @@ func (r *StaticSiteDomainResource) Delete(ctx context.Context, req resource.Dele
 	}
 
 	siteID := data.StaticSiteID.ValueString()
-	domainID := fmt.Sprintf("%d", data.DomainID.ValueInt64())
+	domainID := data.DomainID.ValueString()
 
 	if err := r.client.DeleteStaticSiteDomain(ctx, siteID, domainID); err != nil {
 		if client.IsNotFound(err) {
@@ -206,29 +234,33 @@ func (r *StaticSiteDomainResource) ImportState(ctx context.Context, req resource
 		return
 	}
 	// Set id to the composite import string as a placeholder so framework doesn't reject
-	// the state before Read runs; mapDomainToState rewrites it with the numeric form.
+	// the state before Read runs; mapDomainToState rewrites it once the domain UUID is known.
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("static_site_id"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("domain"), parts[1])...)
 }
 
-func (r *StaticSiteDomainResource) mapDomainToState(siteID string, domain *client.StaticSiteDomain, data *StaticSiteDomainResourceModel) {
-	data.ID = types.StringValue(fmt.Sprintf("%s:%d", siteID, domain.ID))
+func (r *StaticSiteDomainResource) mapDomainToState(siteID string, domain *client.StaticSiteDomain, data *StaticSiteDomainResourceModel, diags *diag.Diagnostics) {
+	data.ID = types.StringValue(fmt.Sprintf("%s:%s", siteID, domain.ID))
 	data.StaticSiteID = types.StringValue(siteID)
-	data.DomainID = types.Int64Value(int64(domain.ID))
+	data.DomainID = types.StringValue(domain.ID)
 	data.Domain = types.StringValue(domain.Domain)
-	data.Type = types.StringValue(domain.Type)
-	data.Status = types.StringValue(domain.Status)
-	if domain.VerificationRecord != nil {
-		data.VerificationRecord = types.StringValue(*domain.VerificationRecord)
-	} else {
-		data.VerificationRecord = types.StringNull()
-	}
-	if domain.VerifiedAt != nil {
-		data.VerifiedAt = types.StringValue(*domain.VerifiedAt)
-	} else {
-		data.VerifiedAt = types.StringNull()
-	}
+	data.VerificationStatus = types.StringValue(domain.VerificationStatus)
+	data.TLSStatus = types.StringValue(domain.TLSStatus)
+	data.DeploymentStatus = types.StringValue(domain.DeploymentStatus)
+	data.IsPrimary = types.BoolValue(domain.IsPrimary)
+
+	dnsInstructions, dnsDiags := types.ObjectValue(
+		staticSiteDomainDNSInstructionsAttrTypes,
+		map[string]attr.Value{
+			"record_type":  types.StringValue(domain.DNSInstructions.RecordType),
+			"record_name":  types.StringValue(domain.DNSInstructions.RecordName),
+			"record_value": types.StringValue(domain.DNSInstructions.RecordValue),
+			"instructions": types.StringValue(domain.DNSInstructions.Instructions),
+		},
+	)
+	diags.Append(dnsDiags...)
+	data.DNSInstructions = dnsInstructions
+
 	data.CreatedAt = types.StringValue(domain.CreatedAt)
-	data.UpdatedAt = types.StringValue(domain.UpdatedAt)
 }

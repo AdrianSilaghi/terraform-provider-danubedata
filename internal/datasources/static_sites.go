@@ -24,10 +24,10 @@ type StaticSitesDataSourceModel struct {
 
 type StaticSiteModel struct {
 	ID        types.String `tfsdk:"id"`
-	TeamID    types.Int64  `tfsdk:"team_id"`
 	Name      types.String `tfsdk:"name"`
 	Slug      types.String `tfsdk:"slug"`
 	URL       types.String `tfsdk:"url"`
+	Plan      types.String `tfsdk:"plan"`
 	Status    types.String `tfsdk:"status"`
 	CreatedAt types.String `tfsdk:"created_at"`
 }
@@ -54,10 +54,10 @@ func (d *StaticSitesDataSource) Schema(ctx context.Context, req datasource.Schem
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id":         schema.StringAttribute{Computed: true},
-						"team_id":    schema.Int64Attribute{Computed: true},
 						"name":       schema.StringAttribute{Computed: true},
 						"slug":       schema.StringAttribute{Computed: true},
 						"url":        schema.StringAttribute{Computed: true},
+						"plan":       schema.StringAttribute{Computed: true},
 						"status":     schema.StringAttribute{Computed: true},
 						"created_at": schema.StringAttribute{Computed: true},
 					},
@@ -98,11 +98,11 @@ func (d *StaticSitesDataSource) Read(ctx context.Context, req datasource.ReadReq
 	data.Sites = make([]StaticSiteModel, len(sites))
 	for i, s := range sites {
 		data.Sites[i] = StaticSiteModel{
-			ID:        types.StringValue(fmt.Sprintf("%d", s.ID)),
-			TeamID:    types.Int64Value(int64(s.TeamID)),
+			ID:        types.StringValue(s.ID),
 			Name:      types.StringValue(s.Name),
 			Slug:      types.StringValue(s.Slug),
 			URL:       types.StringValue(s.URL),
+			Plan:      types.StringValue(s.Plan),
 			Status:    types.StringValue(s.Status),
 			CreatedAt: types.StringValue(s.CreatedAt),
 		}

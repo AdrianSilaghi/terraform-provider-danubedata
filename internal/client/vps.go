@@ -9,34 +9,34 @@ import (
 
 // VpsInstance represents a VPS instance from the API
 type VpsInstance struct {
-	ID                string   `json:"id"`
-	Name              string   `json:"name"`
-	Status            string   `json:"status"`
-	StatusLabel       string   `json:"status_label"`
-	ResourceProfile   string   `json:"resource_profile"`
-	CPUAllocationType string   `json:"cpu_allocation_type"`
-	CPUCores          int      `json:"cpu_cores"`
-	MemorySizeGB      int      `json:"memory_size_gb"`
-	StorageSizeGB     int      `json:"storage_size_gb"`
-	Image             string   `json:"image"`
-	Datacenter        string   `json:"datacenter"`
-	Node              *string  `json:"node"`
-	PublicIP          *string  `json:"public_ip"`
-	PrivateIP         *string  `json:"private_ip"`
-	IPv6Address       *string  `json:"ipv6_address"`
-	VNCAccessURL      *string  `json:"vnc_access_url"`
-	MonthlyCostCents  int      `json:"monthly_cost_cents"`
-	MonthlyCost       float64  `json:"monthly_cost_dollars"`
-	DeployedAt        *string  `json:"deployed_at"`
-	CreatedAt         string   `json:"created_at"`
-	UpdatedAt         string   `json:"updated_at"`
-	TeamID            int      `json:"team_id"`
-	UserID            int      `json:"user_id"`
-	SSHKeyID          *string  `json:"ssh_key_id"`
-	CanBeStarted      bool     `json:"can_be_started"`
-	CanBeStopped      bool     `json:"can_be_stopped"`
-	CanBeRebooted     bool     `json:"can_be_rebooted"`
-	CanBeDestroyed    bool     `json:"can_be_destroyed"`
+	ID                string  `json:"id"`
+	Name              string  `json:"name"`
+	Status            string  `json:"status"`
+	StatusLabel       string  `json:"status_label"`
+	ResourceProfile   string  `json:"resource_profile"`
+	CPUAllocationType string  `json:"cpu_allocation_type"`
+	CPUCores          int     `json:"cpu_cores"`
+	MemorySizeGB      int     `json:"memory_size_gb"`
+	StorageSizeGB     int     `json:"storage_size_gb"`
+	Image             string  `json:"image"`
+	Datacenter        string  `json:"datacenter"`
+	Node              *string `json:"node"`
+	PublicIP          *string `json:"public_ip"`
+	PrivateIP         *string `json:"private_ip"`
+	IPv6Address       *string `json:"ipv6_address"`
+	VNCAccessURL      *string `json:"vnc_access_url"`
+	MonthlyCostCents  int     `json:"monthly_cost_cents"`
+	MonthlyCost       float64 `json:"monthly_cost_dollars"`
+	DeployedAt        *string `json:"deployed_at"`
+	CreatedAt         string  `json:"created_at"`
+	UpdatedAt         string  `json:"updated_at"`
+	TeamID            int     `json:"team_id"`
+	UserID            int     `json:"user_id"`
+	SSHKeyID          *int64  `json:"ssh_key_id"`
+	CanBeStarted      bool    `json:"can_be_started"`
+	CanBeStopped      bool    `json:"can_be_stopped"`
+	CanBeRebooted     bool    `json:"can_be_rebooted"`
+	CanBeDestroyed    bool    `json:"can_be_destroyed"`
 }
 
 // CreateVpsRequest represents a request to create a VPS
@@ -48,24 +48,17 @@ type CreateVpsRequest struct {
 	Datacenter        string  `json:"datacenter"`
 	NetworkStack      string  `json:"network_stack,omitempty"`
 	AuthMethod        string  `json:"auth_method"`
-	SSHKeyID          *string `json:"ssh_key_id,omitempty"`
+	SSHKeyID          *int64  `json:"ssh_key_id,omitempty"`
 	Password          *string `json:"password,omitempty"`
 	PasswordConfirm   *string `json:"password_confirmation,omitempty"`
 	CustomCloudInit   *string `json:"custom_cloud_init,omitempty"`
-	CPUCores          *int    `json:"cpu_cores,omitempty"`
-	MemorySizeGB      *int    `json:"memory_size_gb,omitempty"`
-	StorageSizeGB     *int    `json:"storage_size_gb,omitempty"`
 }
 
-// UpdateVpsRequest represents a request to update a VPS
+// UpdateVpsRequest represents a request to update a VPS.
+// resource_profile and cpu_allocation_type are the only fields the API accepts here.
 type UpdateVpsRequest struct {
-	ResourceProfile   string  `json:"resource_profile,omitempty"`
-	CPUAllocationType string  `json:"cpu_allocation_type,omitempty"`
-	CPUCores          *int    `json:"cpu_cores,omitempty"`
-	MemorySizeGB      *int    `json:"memory_size_gb,omitempty"`
-	StorageSizeGB     *int    `json:"storage_size_gb,omitempty"`
-	Password          *string `json:"password,omitempty"`
-	PasswordConfirm   *string `json:"password_confirmation,omitempty"`
+	ResourceProfile   string `json:"resource_profile,omitempty"`
+	CPUAllocationType string `json:"cpu_allocation_type,omitempty"`
 }
 
 // VpsImage represents an available VPS image
@@ -103,7 +96,15 @@ type createVpsResponse struct {
 }
 
 type showVpsResponse struct {
-	Instance VpsInstance `json:"instance"`
+	Instance       VpsInstance        `json:"instance"`
+	ConnectionInfo *vpsConnectionInfo `json:"connection_info"`
+}
+
+// vpsConnectionInfo mirrors the show endpoint's connection_info object. Only
+// private_ip is consumed: it is the only field here not already present at
+// the top level of VpsInstanceResource.
+type vpsConnectionInfo struct {
+	PrivateIP *string `json:"private_ip"`
 }
 
 type statusVpsResponse struct {
@@ -134,6 +135,9 @@ func (c *Client) GetVps(ctx context.Context, id string) (*VpsInstance, error) {
 	var resp showVpsResponse
 	if err := c.doRequest(ctx, "GET", fmt.Sprintf("/vps/%s", id), nil, &resp); err != nil {
 		return nil, err
+	}
+	if resp.ConnectionInfo != nil {
+		resp.Instance.PrivateIP = resp.ConnectionInfo.PrivateIP
 	}
 	return &resp.Instance, nil
 }
