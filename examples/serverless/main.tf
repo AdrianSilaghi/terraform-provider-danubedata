@@ -15,11 +15,12 @@ provider "danubedata" {}
 # Simple nginx container
 resource "danubedata_serverless" "web" {
   name            = "my-web-app"
-  deployment_type = "docker"
-  image_url       = "nginx:latest"
+  deployment_type = "docker_image"
+  image           = "nginx"
+  image_tag       = "latest"
   port            = 80
-  min_instances   = 0  # Scale to zero when idle
-  max_instances   = 10
+  min_scale       = 0 # Scale to zero when idle
+  max_scale       = 10
 
   environment_variables = {
     NGINX_HOST = "localhost"

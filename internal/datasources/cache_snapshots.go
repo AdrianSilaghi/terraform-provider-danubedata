@@ -3,6 +3,7 @@ package datasources
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -94,7 +95,7 @@ func (d *CacheSnapshotsDataSource) Read(ctx context.Context, req datasource.Read
 	data.Snapshots = make([]CacheSnapshotModel, len(snapshots))
 	for i, s := range snapshots {
 		data.Snapshots[i] = CacheSnapshotModel{
-			ID:              types.StringValue(s.ID),
+			ID:              types.StringValue(strconv.FormatInt(s.ID, 10)),
 			Name:            types.StringValue(s.Name),
 			Description:     types.StringValue(s.Description),
 			Status:          types.StringValue(s.Status),

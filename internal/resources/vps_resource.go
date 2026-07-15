@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -96,16 +97,10 @@ func (r *VpsResource) Schema(ctx context.Context, req resource.SchemaRequest, re
 				Computed:    true,
 			},
 			"resource_profile": schema.StringAttribute{
-				Description: "Resource profile for the VPS (nano_shared, micro_shared, small_shared, medium_shared, large_shared, or dedicated variants).",
+				Description: "Resource profile slug for the VPS (e.g. nano_shared, micro_shared). Determines cpu_cores, memory_size_gb, and storage_size_gb. Available slugs are dynamic and validated by the API.",
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString("nano_shared"),
-				Validators: []validator.String{
-					stringvalidator.OneOf(
-						"nano_shared", "micro_shared", "small_shared", "medium_shared", "large_shared",
-						"nano", "micro", "small", "medium", "large",
-					),
-				},
 			},
 			"cpu_allocation_type": schema.StringAttribute{
 				Description: "CPU allocation type: 'shared' or 'dedicated'.",
@@ -124,64 +119,76 @@ func (r *VpsResource) Schema(ctx context.Context, req resource.SchemaRequest, re
 				},
 			},
 			"datacenter": schema.StringAttribute{
-				Description: "Datacenter location (fsn1, nbg1, hel1, ash).",
+				Description: "Datacenter location (fsn1).",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("fsn1", "nbg1", "hel1", "ash"),
+					stringvalidator.OneOf("fsn1"),
 				},
 			},
 			"network_stack": schema.StringAttribute{
-				Description: "Network stack: 'ipv4_only', 'ipv6_only', or 'dual_stack'.",
+				Description: "Network stack: 'ipv4_only', 'ipv6_only', or 'dual_stack'. Create-only; changing it replaces the instance.",
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString("dual_stack"),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplaceIfConfigured(),
+				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("ipv4_only", "ipv6_only", "dual_stack"),
 				},
 			},
 			"auth_method": schema.StringAttribute{
-				Description: "Authentication method: 'ssh_key' or 'password'.",
+				Description: "Authentication method: 'ssh_key' or 'password'. Create-only; changing it replaces the instance.",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("ssh_key", "password"),
 				},
 			},
 			"ssh_key_id": schema.StringAttribute{
-				Description: "SSH key ID for authentication (required if auth_method is 'ssh_key').",
+				Description: "SSH key ID for authentication (required if auth_method is 'ssh_key'). Create-only; changing it replaces the instance.",
 				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"password": schema.StringAttribute{
-				Description: "Root password. When auth_method is 'password' this must be supplied and be at least 12 characters; otherwise it is populated by the API after provisioning.",
+				Description: "Root password. When auth_method is 'password' this must be supplied and be at least 12 characters; otherwise it is populated by the API after provisioning. Create-only; changing a configured value replaces the instance.",
 				Optional:    true,
 				Computed:    true,
 				Sensitive:   true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplaceIfConfigured(),
+				},
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(12),
 				},
 			},
 			"custom_cloud_init": schema.StringAttribute{
-				Description: "Custom cloud-init configuration script.",
+				Description: "Custom cloud-init configuration script. Create-only; changing it replaces the instance.",
 				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 				Validators: []validator.String{
 					stringvalidator.LengthAtMost(10000),
 				},
 			},
 			"cpu_cores": schema.Int64Attribute{
-				Description: "Number of CPU cores. Can be specified during creation or update. VPS must be stopped to modify.",
-				Optional:    true,
+				Description: "Number of CPU cores. Derived from resource_profile; read-only.",
 				Computed:    true,
 			},
 			"memory_size_gb": schema.Int64Attribute{
-				Description: "Memory size in GB. Can be specified during creation or update. VPS must be stopped to modify.",
-				Optional:    true,
+				Description: "Memory size in GB. Derived from resource_profile; read-only.",
 				Computed:    true,
 			},
 			"storage_size_gb": schema.Int64Attribute{
-				Description: "Storage size in GB. Can be specified during creation or update. VPS must be stopped to modify.",
-				Optional:    true,
+				Description: "Storage size in GB. Derived from resource_profile; read-only.",
 				Computed:    true,
 			},
 			"public_ip": schema.StringAttribute{
@@ -279,7 +286,11 @@ func (r *VpsResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 
 	if !data.SSHKeyID.IsNull() && !data.SSHKeyID.IsUnknown() {
-		sshKeyID := data.SSHKeyID.ValueString()
+		sshKeyID, err := strconv.ParseInt(data.SSHKeyID.ValueString(), 10, 64)
+		if err != nil {
+			resp.Diagnostics.AddError("Invalid ssh_key_id", fmt.Sprintf("ssh_key_id must be numeric: %s", err))
+			return
+		}
 		createReq.SSHKeyID = &sshKeyID
 	}
 
@@ -292,21 +303,6 @@ func (r *VpsResource) Create(ctx context.Context, req resource.CreateRequest, re
 	if !data.CustomCloudInit.IsNull() && !data.CustomCloudInit.IsUnknown() {
 		cloudInit := data.CustomCloudInit.ValueString()
 		createReq.CustomCloudInit = &cloudInit
-	}
-
-	if !data.CPUCores.IsNull() && !data.CPUCores.IsUnknown() {
-		cpuCores := int(data.CPUCores.ValueInt64())
-		createReq.CPUCores = &cpuCores
-	}
-
-	if !data.MemorySizeGB.IsNull() && !data.MemorySizeGB.IsUnknown() {
-		memorySizeGB := int(data.MemorySizeGB.ValueInt64())
-		createReq.MemorySizeGB = &memorySizeGB
-	}
-
-	if !data.StorageSizeGB.IsNull() && !data.StorageSizeGB.IsUnknown() {
-		storageSizeGB := int(data.StorageSizeGB.ValueInt64())
-		createReq.StorageSizeGB = &storageSizeGB
 	}
 
 	tflog.Debug(ctx, "Creating VPS instance", map[string]interface{}{
@@ -407,31 +403,6 @@ func (r *VpsResource) Update(ctx context.Context, req resource.UpdateRequest, re
 
 	if !data.CPUAllocationType.Equal(state.CPUAllocationType) {
 		updateReq.CPUAllocationType = data.CPUAllocationType.ValueString()
-		hasChanges = true
-	}
-
-	if !data.CPUCores.Equal(state.CPUCores) {
-		cpuCores := int(data.CPUCores.ValueInt64())
-		updateReq.CPUCores = &cpuCores
-		hasChanges = true
-	}
-
-	if !data.MemorySizeGB.Equal(state.MemorySizeGB) {
-		memorySizeGB := int(data.MemorySizeGB.ValueInt64())
-		updateReq.MemorySizeGB = &memorySizeGB
-		hasChanges = true
-	}
-
-	if !data.StorageSizeGB.Equal(state.StorageSizeGB) {
-		storageSizeGB := int(data.StorageSizeGB.ValueInt64())
-		updateReq.StorageSizeGB = &storageSizeGB
-		hasChanges = true
-	}
-
-	if !data.Password.IsNull() && !data.Password.IsUnknown() && !data.Password.Equal(state.Password) {
-		password := data.Password.ValueString()
-		updateReq.Password = &password
-		updateReq.PasswordConfirm = &password
 		hasChanges = true
 	}
 
@@ -620,7 +591,7 @@ func (r *VpsResource) mapVpsToState(vps *client.VpsInstance, data *VpsResourceMo
 	}
 
 	if vps.SSHKeyID != nil {
-		data.SSHKeyID = types.StringValue(*vps.SSHKeyID)
+		data.SSHKeyID = types.StringValue(strconv.FormatInt(*vps.SSHKeyID, 10))
 	}
 }
 

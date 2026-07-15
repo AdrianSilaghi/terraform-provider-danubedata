@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 )
@@ -16,8 +17,13 @@ func TestClient_CreateVps(t *testing.T) {
 			t.Errorf("Path = %v, want /vps", r.URL.Path)
 		}
 
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+
 		var req CreateVpsRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.Unmarshal(body, &req); err != nil {
 			t.Fatalf("failed to decode request: %v", err)
 		}
 
@@ -26,6 +32,28 @@ func TestClient_CreateVps(t *testing.T) {
 		}
 		if req.Image != "ubuntu-22.04" {
 			t.Errorf("Image = %v, want ubuntu-22.04", req.Image)
+		}
+		if req.SSHKeyID == nil || *req.SSHKeyID != 123 {
+			t.Errorf("SSHKeyID = %v, want 123", req.SSHKeyID)
+		}
+
+		// ssh_key_id must be sent as a JSON number, not a string: the API's
+		// StoreVpsInstanceRequest declares it `ssh_key_id?: number | null`.
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(body, &raw); err != nil {
+			t.Fatalf("failed to decode raw request: %v", err)
+		}
+		if string(raw["ssh_key_id"]) != "123" {
+			t.Errorf("raw ssh_key_id = %s, want bare number 123", raw["ssh_key_id"])
+		}
+
+		// cpu_cores/memory_size_gb/storage_size_gb are not in
+		// StoreVpsInstanceRequest's accepted fields; CreateVpsRequest must
+		// not be able to send them at all.
+		for _, key := range []string{"cpu_cores", "memory_size_gb", "storage_size_gb"} {
+			if _, present := raw[key]; present {
+				t.Errorf("request body unexpectedly contains %q", key)
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -43,7 +71,7 @@ func TestClient_CreateVps(t *testing.T) {
 	defer server.Close()
 
 	c := newTestClient(server)
-	sshKeyID := "key-123"
+	var sshKeyID int64 = 123
 	vps, err := c.CreateVps(context.Background(), CreateVpsRequest{
 		Name:       "test-vps",
 		Image:      "ubuntu-22.04",
@@ -73,6 +101,8 @@ func TestClient_GetVps(t *testing.T) {
 		}
 
 		publicIP := "192.168.1.1"
+		privateIP := "10.0.0.5"
+		var sshKeyID int64 = 456
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(showVpsResponse{
 			Instance: VpsInstance{
@@ -84,6 +114,10 @@ func TestClient_GetVps(t *testing.T) {
 				MemorySizeGB:      4,
 				StorageSizeGB:     50,
 				PublicIP:          &publicIP,
+				SSHKeyID:          &sshKeyID,
+			},
+			ConnectionInfo: &vpsConnectionInfo{
+				PrivateIP: &privateIP,
 			},
 		})
 	})
@@ -106,6 +140,12 @@ func TestClient_GetVps(t *testing.T) {
 	}
 	if *vps.PublicIP != "192.168.1.1" {
 		t.Errorf("PublicIP = %v, want 192.168.1.1", *vps.PublicIP)
+	}
+	if vps.PrivateIP == nil || *vps.PrivateIP != "10.0.0.5" {
+		t.Errorf("PrivateIP = %v, want 10.0.0.5", vps.PrivateIP)
+	}
+	if vps.SSHKeyID == nil || *vps.SSHKeyID != 456 {
+		t.Errorf("SSHKeyID = %v, want 456", vps.SSHKeyID)
 	}
 }
 
@@ -136,38 +176,61 @@ func TestClient_UpdateVps(t *testing.T) {
 			t.Errorf("Path = %v, want /vps/vps-123", r.URL.Path)
 		}
 
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+
 		var req UpdateVpsRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.Unmarshal(body, &req); err != nil {
 			t.Fatalf("failed to decode request: %v", err)
 		}
 
-		if req.CPUCores == nil || *req.CPUCores != 4 {
-			t.Errorf("CPUCores = %v, want 4", req.CPUCores)
+		if req.ResourceProfile != "micro_shared" {
+			t.Errorf("ResourceProfile = %v, want micro_shared", req.ResourceProfile)
+		}
+
+		// UpdateVpsInstanceRequest only accepts resource_profile and
+		// cpu_allocation_type; UpdateVpsRequest must not be able to send
+		// anything else.
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(body, &raw); err != nil {
+			t.Fatalf("failed to decode raw request: %v", err)
+		}
+		for _, key := range []string{"cpu_cores", "memory_size_gb", "storage_size_gb", "password", "password_confirmation"} {
+			if _, present := raw[key]; present {
+				t.Errorf("request body unexpectedly contains %q", key)
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(showVpsResponse{
 			Instance: VpsInstance{
-				ID:       "vps-123",
-				Name:     "test-vps",
-				Status:   "running",
-				CPUCores: 4,
+				ID:              "vps-123",
+				Name:            "test-vps",
+				Status:          "running",
+				ResourceProfile: "micro_shared",
+				CPUCores:        3,
+				MemorySizeGB:    4,
+				StorageSizeGB:   60,
 			},
 		})
 	})
 	defer server.Close()
 
 	c := newTestClient(server)
-	cpuCores := 4
 	vps, err := c.UpdateVps(context.Background(), "vps-123", UpdateVpsRequest{
-		CPUCores: &cpuCores,
+		ResourceProfile: "micro_shared",
 	})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if vps.CPUCores != 4 {
-		t.Errorf("CPUCores = %v, want 4", vps.CPUCores)
+	if vps.ResourceProfile != "micro_shared" {
+		t.Errorf("ResourceProfile = %v, want micro_shared", vps.ResourceProfile)
+	}
+	if vps.CPUCores != 3 {
+		t.Errorf("CPUCores = %v, want 3", vps.CPUCores)
 	}
 }
 

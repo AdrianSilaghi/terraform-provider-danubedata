@@ -3,7 +3,9 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -51,12 +53,10 @@ func TestClient_CreateCache(t *testing.T) {
 
 	c := newTestClient(server)
 	cache, err := c.CreateCache(context.Background(), CreateCacheRequest{
-		Name:              "my-cache",
-		Provider:          "redis",
-		MemorySizeMB:      512,
-		CPUCores:          1,
-		Datacenter:        "fsn1",
-		ResourceProfile:   "standard",
+		Name:            "my-cache",
+		Provider:        "redis",
+		Datacenter:      "fsn1",
+		ResourceProfile: "standard",
 	})
 
 	if err != nil {
@@ -90,7 +90,7 @@ func TestClient_GetCache(t *testing.T) {
 				CPUCores:     2,
 				MemorySizeMB: 1024,
 				Version:      "7.2",
-				Provider:     CacheProvider{ID: 1, Name: "redis"},
+				Provider:     CacheProvider{ID: 1, Name: "Redis", Type: "redis"},
 				Endpoint:     &endpoint,
 				Port:         &port,
 			},
@@ -114,6 +114,9 @@ func TestClient_GetCache(t *testing.T) {
 	}
 	if cache.MemorySizeMB != 1024 {
 		t.Errorf("MemorySizeMB = %v, want 1024", cache.MemorySizeMB)
+	}
+	if cache.Provider.Type != "redis" {
+		t.Errorf("Provider.Type = %v, want redis", cache.Provider.Type)
 	}
 }
 
@@ -144,35 +147,47 @@ func TestClient_UpdateCache(t *testing.T) {
 			t.Errorf("Path = %v, want /cache/cache-123", r.URL.Path)
 		}
 
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+		if strings.Contains(string(body), "memory_size_mb") || strings.Contains(string(body), "cpu_cores") {
+			t.Errorf("request body must not contain memory_size_mb/cpu_cores, got: %s", body)
+		}
+
 		var req UpdateCacheRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.Unmarshal(body, &req); err != nil {
 			t.Fatalf("failed to decode request: %v", err)
 		}
-		if req.MemorySizeMB == nil || *req.MemorySizeMB != 2048 {
-			t.Errorf("MemorySizeMB = %v, want 2048", req.MemorySizeMB)
+		if req.ResourceProfile != "small" {
+			t.Errorf("ResourceProfile = %v, want small", req.ResourceProfile)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(updateCacheResponse{
 			Message: "Cache instance updated",
 			Instance: CacheInstance{
-				ID:           "cache-123",
-				Name:         "my-cache",
-				MemorySizeMB: 2048,
-				Provider:     CacheProvider{ID: 1, Name: "redis"},
+				ID:              "cache-123",
+				Name:            "my-cache",
+				ResourceProfile: "small",
+				MemorySizeMB:    2048,
+				CPUCores:        2,
+				Provider:        CacheProvider{ID: 1, Name: "Redis", Type: "redis"},
 			},
 		})
 	})
 	defer server.Close()
 
 	c := newTestClient(server)
-	memSize := 2048
 	cache, err := c.UpdateCache(context.Background(), "cache-123", UpdateCacheRequest{
-		MemorySizeMB: &memSize,
+		ResourceProfile: "small",
 	})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if cache.ResourceProfile != "small" {
+		t.Errorf("ResourceProfile = %v, want small", cache.ResourceProfile)
 	}
 	if cache.MemorySizeMB != 2048 {
 		t.Errorf("MemorySizeMB = %v, want 2048", cache.MemorySizeMB)

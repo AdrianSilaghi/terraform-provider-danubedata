@@ -48,7 +48,7 @@ func TestAccCacheResource_redis(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_cache.test", "name", name),
 					resource.TestCheckResourceAttr("danubedata_cache.test", "cache_provider", "redis"),
-					resource.TestCheckResourceAttr("danubedata_cache.test", "memory_size_mb", "512"),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "memory_size_mb"),
 				),
 			},
 		},
@@ -109,8 +109,6 @@ resource "danubedata_cache" "test" {
   name             = %q
   cache_provider   = "redis"
   resource_profile = "micro"
-  memory_size_mb   = 256
-  cpu_cores        = 1
   datacenter       = "fsn1"
 
   timeouts {
@@ -130,8 +128,6 @@ resource "danubedata_cache" "test" {
   name             = %q
   cache_provider   = "redis"
   resource_profile = "micro"
-  memory_size_mb   = 256
-  cpu_cores        = 1
   datacenter       = "fsn1"
   version          = "7.2"
 
@@ -152,8 +148,6 @@ resource "danubedata_cache" "test" {
   name             = %q
   cache_provider   = "valkey"
   resource_profile = "micro"
-  memory_size_mb   = 256
-  cpu_cores        = 1
   datacenter       = "fsn1"
 
   timeouts {

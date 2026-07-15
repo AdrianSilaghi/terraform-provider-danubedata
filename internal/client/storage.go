@@ -9,31 +9,31 @@ import (
 
 // StorageBucket represents a storage bucket from the API
 type StorageBucket struct {
-	ID                 string            `json:"id"`
-	Name               string            `json:"name"`
-	DisplayName        *string           `json:"display_name"`
-	Status             string            `json:"status"`
-	StatusLabel        string            `json:"status_label"`
-	Region             string            `json:"region"`
-	EndpointURL        string            `json:"endpoint_url"`
-	PublicURL          *string           `json:"public_url"`
-	MinioBucketName    string            `json:"minio_bucket_name"`
-	PublicAccess       bool              `json:"public_access"`
-	VersioningEnabled  bool              `json:"versioning_enabled"`
-	EncryptionEnabled  bool              `json:"encryption_enabled"`
-	EncryptionType     *string           `json:"encryption_type"`
-	SizeBytes          int64             `json:"size_bytes"`
-	SizeLimitBytes     *int64            `json:"size_limit_bytes"`
-	ObjectCount        int               `json:"object_count"`
-	Tags               map[string]string `json:"tags"`
-	MonthlyCostCents   int               `json:"monthly_cost_cents"`
-	MonthlyCostDollars float64           `json:"monthly_cost_dollars"`
-	CreatedAt          string            `json:"created_at"`
-	UpdatedAt          string            `json:"updated_at"`
-	TeamID             int               `json:"team_id"`
-	UserID             int               `json:"user_id"`
-	CanBeModified      bool              `json:"can_be_modified"`
-	CanBeDestroyed     bool              `json:"can_be_destroyed"`
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	DisplayName        *string  `json:"display_name"`
+	Status             string   `json:"status"`
+	StatusLabel        string   `json:"status_label"`
+	Region             string   `json:"region"`
+	EndpointURL        string   `json:"endpoint_url"`
+	PublicURL          *string  `json:"public_url"`
+	MinioBucketName    string   `json:"minio_bucket_name"`
+	PublicAccess       bool     `json:"public_access"`
+	VersioningEnabled  bool     `json:"versioning_enabled"`
+	EncryptionEnabled  bool     `json:"encryption_enabled"`
+	EncryptionType     *string  `json:"encryption_type"`
+	SizeBytes          int64    `json:"size_bytes"`
+	SizeLimitBytes     *int64   `json:"size_limit_bytes"`
+	ObjectCount        int      `json:"object_count"`
+	Tags               []string `json:"tags"`
+	MonthlyCostCents   int      `json:"monthly_cost_cents"`
+	MonthlyCostDollars float64  `json:"monthly_cost_dollars"`
+	CreatedAt          string   `json:"created_at"`
+	UpdatedAt          string   `json:"updated_at"`
+	TeamID             int      `json:"team_id"`
+	UserID             int      `json:"user_id"`
+	CanBeModified      bool     `json:"can_be_modified"`
+	CanBeDestroyed     bool     `json:"can_be_destroyed"`
 }
 
 // CreateStorageBucketRequest represents a request to create a storage bucket

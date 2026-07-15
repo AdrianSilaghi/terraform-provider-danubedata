@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
@@ -79,7 +80,7 @@ func (r *VpsSnapshotResource) Schema(ctx context.Context, req resource.SchemaReq
 				},
 			},
 			"status": schema.StringAttribute{
-				Description: "Status of the snapshot (pending, completed, failed).",
+				Description: "Status of the snapshot (creating, ready, failed).",
 				Computed:    true,
 			},
 			"size_gb": schema.Float64Attribute{
@@ -154,7 +155,7 @@ func (r *VpsSnapshotResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	data.ID = types.StringValue(snapshot.ID)
+	data.ID = types.StringValue(strconv.FormatInt(snapshot.ID, 10))
 
 	tflog.Info(ctx, "VPS snapshot created, waiting for completion", map[string]interface{}{
 		"id":   snapshot.ID,
@@ -162,11 +163,11 @@ func (r *VpsSnapshotResource) Create(ctx context.Context, req resource.CreateReq
 	})
 
 	// Wait for snapshot to complete
-	err = r.client.WaitForVpsSnapshotStatus(ctx, snapshot.ID, "completed", createTimeout)
+	err = r.client.WaitForVpsSnapshotStatus(ctx, snapshot.ID, "ready", createTimeout)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"VPS snapshot failed to complete",
-			fmt.Sprintf("Snapshot %s did not complete: %s", snapshot.ID, err),
+			fmt.Sprintf("Snapshot %d did not complete: %s", snapshot.ID, err),
 		)
 		return
 	}
@@ -190,7 +191,13 @@ func (r *VpsSnapshotResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
-	snapshot, err := r.client.GetVpsSnapshot(ctx, data.ID.ValueString())
+	id, err := strconv.ParseInt(data.ID.ValueString(), 10, 64)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid VPS snapshot ID", err.Error())
+		return
+	}
+
+	snapshot, err := r.client.GetVpsSnapshot(ctx, id)
 	if err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
@@ -236,7 +243,13 @@ func (r *VpsSnapshotResource) Delete(ctx context.Context, req resource.DeleteReq
 		"id": data.ID.ValueString(),
 	})
 
-	err := r.client.DeleteVpsSnapshot(ctx, data.ID.ValueString())
+	id, err := strconv.ParseInt(data.ID.ValueString(), 10, 64)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid VPS snapshot ID", err.Error())
+		return
+	}
+
+	err = r.client.DeleteVpsSnapshot(ctx, id)
 	if err != nil {
 		if client.IsNotFound(err) {
 			return
@@ -251,7 +264,7 @@ func (r *VpsSnapshotResource) ImportState(ctx context.Context, req resource.Impo
 }
 
 func (r *VpsSnapshotResource) mapSnapshotToState(snapshot *client.VpsSnapshot, data *VpsSnapshotResourceModel) {
-	data.ID = types.StringValue(snapshot.ID)
+	data.ID = types.StringValue(strconv.FormatInt(snapshot.ID, 10))
 	data.Name = types.StringValue(snapshot.Name)
 	data.Description = types.StringValue(snapshot.Description)
 	data.VpsInstanceID = types.StringValue(snapshot.VpsInstanceID)

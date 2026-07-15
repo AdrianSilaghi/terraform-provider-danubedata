@@ -3,6 +3,7 @@ package datasources
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -27,7 +28,6 @@ type CacheInstanceModel struct {
 	Status          types.String  `tfsdk:"status"`
 	CacheProvider   types.String  `tfsdk:"cache_provider"`
 	Version         types.String  `tfsdk:"version"`
-	Datacenter      types.String  `tfsdk:"datacenter"`
 	ResourceProfile types.String  `tfsdk:"resource_profile"`
 	CPUCores        types.Int64   `tfsdk:"cpu_cores"`
 	MemorySizeMB    types.Int64   `tfsdk:"memory_size_mb"`
@@ -72,10 +72,6 @@ func (d *CachesDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 						},
 						"version": schema.StringAttribute{
 							Description: "Cache version.",
-							Computed:    true,
-						},
-						"datacenter": schema.StringAttribute{
-							Description: "Datacenter location.",
 							Computed:    true,
 						},
 						"resource_profile": schema.StringAttribute{
@@ -149,13 +145,16 @@ func (d *CachesDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 	data.Instances = make([]CacheInstanceModel, len(instances))
 	for i, inst := range instances {
+		cacheProviderType := inst.Provider.Type
+		if cacheProviderType == "" {
+			cacheProviderType = strings.ToLower(inst.Provider.Name)
+		}
 		data.Instances[i] = CacheInstanceModel{
 			ID:              types.StringValue(inst.ID),
 			Name:            types.StringValue(inst.Name),
 			Status:          types.StringValue(inst.Status),
-			CacheProvider:   types.StringValue(inst.Provider.Name),
+			CacheProvider:   types.StringValue(cacheProviderType),
 			Version:         types.StringValue(inst.Version),
-			Datacenter:      types.StringValue(inst.Datacenter),
 			ResourceProfile: types.StringValue(inst.ResourceProfile),
 			CPUCores:        types.Int64Value(int64(inst.CPUCores)),
 			MemorySizeMB:    types.Int64Value(int64(inst.MemorySizeMB)),

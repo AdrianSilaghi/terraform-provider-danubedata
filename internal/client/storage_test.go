@@ -112,6 +112,33 @@ func TestClient_GetStorageBucket(t *testing.T) {
 	}
 }
 
+func TestClient_GetStorageBucket_WithTags(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"bucket": {
+				"id": "bucket-123",
+				"name": "my-bucket",
+				"status": "active",
+				"region": "fsn1",
+				"tags": ["production", "team-a"]
+			},
+			"endpoint": "https://s3.danubedata.ro"
+		}`))
+	})
+	defer server.Close()
+
+	c := newTestClient(server)
+	bucket, err := c.GetStorageBucket(context.Background(), "bucket-123")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(bucket.Tags) != 2 || bucket.Tags[0] != "production" || bucket.Tags[1] != "team-a" {
+		t.Errorf("Tags = %v, want [production team-a]", bucket.Tags)
+	}
+}
+
 func TestClient_GetStorageBucket_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

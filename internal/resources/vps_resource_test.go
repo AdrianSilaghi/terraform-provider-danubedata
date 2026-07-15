@@ -77,39 +77,25 @@ func TestAccVpsResource_update(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create with initial profile
 			{
-				Config: testAccVpsResourceConfig_withProfile(sshKeyName, sshPubKey, name, "vps-small"),
+				Config: testAccVpsResourceConfig_withProfile(sshKeyName, sshPubKey, name, "nano_shared"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_vps.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_vps.test", "resource_profile", "vps-small"),
-				),
-			},
-			// Update to larger profile
-			{
-				Config: testAccVpsResourceConfig_withProfile(sshKeyName, sshPubKey, name, "vps-medium"),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("danubedata_vps.test", "resource_profile", "vps-medium"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccVpsResource_withCustomResources(t *testing.T) {
-	name := acctest.RandomName("tf-vps")
-	sshKeyName := acctest.RandomName("tf-key")
-	sshPubKey := acctest.RandomSSHPublicKey()
-
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config: testAccVpsResourceConfig_withCustomResources(sshKeyName, sshPubKey, name, 2, 4, 50),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("danubedata_vps.test", "name", name),
+					resource.TestCheckResourceAttr("danubedata_vps.test", "resource_profile", "nano_shared"),
 					resource.TestCheckResourceAttr("danubedata_vps.test", "cpu_cores", "2"),
+					resource.TestCheckResourceAttr("danubedata_vps.test", "memory_size_gb", "2"),
+					resource.TestCheckResourceAttr("danubedata_vps.test", "storage_size_gb", "40"),
+				),
+			},
+			// Update to a larger profile — cpu_cores/memory_size_gb/storage_size_gb are
+			// read-only and must be re-derived server-side from the new profile, proving
+			// the update request actually reaches the API instead of no-op'ing.
+			{
+				Config: testAccVpsResourceConfig_withProfile(sshKeyName, sshPubKey, name, "micro_shared"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("danubedata_vps.test", "resource_profile", "micro_shared"),
+					resource.TestCheckResourceAttr("danubedata_vps.test", "cpu_cores", "3"),
 					resource.TestCheckResourceAttr("danubedata_vps.test", "memory_size_gb", "4"),
-					resource.TestCheckResourceAttr("danubedata_vps.test", "storage_size_gb", "50"),
+					resource.TestCheckResourceAttr("danubedata_vps.test", "storage_size_gb", "60"),
 				),
 			},
 		},
@@ -183,34 +169,6 @@ resource "danubedata_vps" "test" {
   }
 }
 `, sshKeyName, sshPubKey, name, profile),
-	)
-}
-
-func testAccVpsResourceConfig_withCustomResources(sshKeyName, sshPubKey, name string, cpuCores, memoryGB, storageGB int) string {
-	return acctest.ConfigCompose(
-		acctest.ProviderConfig(),
-		fmt.Sprintf(`
-resource "danubedata_ssh_key" "test" {
-  name       = %q
-  public_key = %q
-}
-
-resource "danubedata_vps" "test" {
-  name           = %q
-  image          = "ubuntu-22.04"
-  datacenter     = "fsn1"
-  auth_method    = "ssh_key"
-  ssh_key_id     = danubedata_ssh_key.test.id
-  cpu_cores      = %d
-  memory_size_gb = %d
-  storage_size_gb = %d
-
-  timeouts {
-    create = "10m"
-    delete = "10m"
-  }
-}
-`, sshKeyName, sshPubKey, name, cpuCores, memoryGB, storageGB),
 	)
 }
 

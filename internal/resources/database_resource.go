@@ -88,7 +88,7 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 						regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`),
 						"must be lowercase alphanumeric with hyphens (DNS compatible)",
 					),
-					stringvalidator.LengthBetween(1, 255),
+					stringvalidator.LengthBetween(2, 63),
 				},
 			},
 			"status": schema.StringAttribute{
@@ -122,12 +122,10 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 			"resource_profile": schema.StringAttribute{
 				Description: "Resource profile for the database (small, medium, large).",
 				Required:    true,
-				Validators: []validator.String{
-					stringvalidator.OneOf("small", "medium", "large"),
-				},
 			},
 			"storage_size_gb": schema.Int64Attribute{
-				Description: "Storage size in GB. Derived from resource_profile.",
+				Description: "Storage size in GB. Defaults to the resource_profile's minimum; may only be increased afterwards (the API rejects shrinking).",
+				Optional:    true,
 				Computed:    true,
 			},
 			"memory_size_mb": schema.Int64Attribute{
@@ -150,7 +148,7 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("fsn1", "nbg1", "hel1", "ash"),
+					stringvalidator.OneOf("fsn1", "nbg1", "hel1"),
 				},
 			},
 			"parameter_group_id": schema.StringAttribute{
@@ -240,6 +238,10 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
+	// The API always provisions at the resource_profile's minimum storage; a larger
+	// configured value is applied via a follow-up resize once the instance is running.
+	plannedStorageSizeGB := data.StorageSizeGB
+
 	// Get timeout
 	createTimeout, diags := data.Timeouts.Create(ctx, 30*time.Minute)
 	resp.Diagnostics.Append(diags...)
@@ -310,11 +312,32 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	r.mapDatabaseToState(database, &data)
 	r.fetchDatabaseCredentials(ctx, database.ID, &data)
 
-	// Save state *before* attempting the DNS toggle so that a failing DNS call doesn't
-	// leave the user with a provisioned-but-untracked database instance.
+	// Save state *before* attempting the storage grow and DNS toggle so that a failing
+	// follow-up call doesn't leave the user with a provisioned-but-untracked instance.
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	if target, needed := databaseNeedsStorageGrow(plannedStorageSizeGB, database.StorageSizeGB); needed {
+		tflog.Info(ctx, "Growing database storage to configured size", map[string]interface{}{
+			"id":              database.ID,
+			"storage_size_gb": target,
+		})
+
+		// Storage-only updates are persisted synchronously and never leave the
+		// running status, so the response already carries the final value.
+		updated, err := r.client.UpdateDatabase(ctx, database.ID, client.UpdateDatabaseRequest{StorageSizeGB: &target})
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to grow database storage after creation", err.Error())
+			return
+		}
+
+		r.mapDatabaseToState(updated, &data)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
 	if data.DnsEnabled.ValueBool() {
@@ -385,6 +408,12 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 			paramGroupID := data.ParameterGroupID.ValueString()
 			updateReq.ParameterGroupID = &paramGroupID
 		}
+		hasChanges = true
+	}
+
+	if !data.StorageSizeGB.Equal(state.StorageSizeGB) && !data.StorageSizeGB.IsNull() && !data.StorageSizeGB.IsUnknown() {
+		storageSizeGB := int(data.StorageSizeGB.ValueInt64())
+		updateReq.StorageSizeGB = &storageSizeGB
 		hasChanges = true
 	}
 
@@ -545,7 +574,11 @@ func (r *DatabaseResource) mapDatabaseToState(database *client.DatabaseInstance,
 	data.ID = types.StringValue(database.ID)
 	data.Name = types.StringValue(database.Name)
 	data.Status = types.StringValue(database.Status)
-	data.Engine = types.StringValue(strings.ToLower(database.Engine.Name))
+	engineType := database.Provider.Type
+	if engineType == "" {
+		engineType = strings.ToLower(database.Engine.Name)
+	}
+	data.Engine = types.StringValue(engineType)
 	data.ResourceProfile = types.StringValue(database.ResourceProfile)
 	data.StorageSizeGB = types.Int64Value(int64(database.StorageSizeGB))
 	data.MemorySizeMB = types.Int64Value(int64(database.MemorySizeMB))
@@ -597,9 +630,23 @@ func (r *DatabaseResource) mapDatabaseToState(database *client.DatabaseInstance,
 
 	if database.ParameterGroupID != nil && *database.ParameterGroupID != "" {
 		data.ParameterGroupID = types.StringValue(*database.ParameterGroupID)
-	} else {
-		data.ParameterGroupID = types.StringNull()
 	}
+}
+
+// databaseNeedsStorageGrow reports whether the configured storage size exceeds what the
+// API provisioned, returning the target size to grow to. Values at or below the
+// provisioned size are left to the normal state mapping (the API rejects shrinking).
+func databaseNeedsStorageGrow(planned types.Int64, actualGB int) (int, bool) {
+	if planned.IsNull() || planned.IsUnknown() {
+		return 0, false
+	}
+
+	target := int(planned.ValueInt64())
+	if target <= actualGB {
+		return 0, false
+	}
+
+	return target, true
 }
 
 // fetchDatabaseCredentials populates username, password, and connection_info from the API.

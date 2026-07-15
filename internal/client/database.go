@@ -26,6 +26,7 @@ type DatabaseInstance struct {
 	DatabaseName       *string        `json:"database_name"`
 	Version            string         `json:"version"`
 	Engine             DatabaseEngine `json:"engine"`
+	Provider           Provider       `json:"provider"`
 	Datacenter         string         `json:"datacenter"`
 	Endpoint           *string        `json:"endpoint"`
 	Port               *int           `json:"port"`
@@ -59,6 +60,7 @@ type UpdateDatabaseRequest struct {
 	Name             string  `json:"name,omitempty"`
 	ResourceProfile  string  `json:"resource_profile,omitempty"`
 	ParameterGroupID *string `json:"parameter_group_id,omitempty"`
+	StorageSizeGB    *int    `json:"storage_size_gb,omitempty"`
 }
 
 type createDatabaseResponse struct {

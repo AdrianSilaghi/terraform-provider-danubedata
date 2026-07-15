@@ -4,7 +4,7 @@ HOSTNAME=registry.terraform.io
 NAMESPACE=AdrianSilaghi
 NAME=danubedata
 BINARY=terraform-provider-${NAME}
-VERSION=0.1.0
+VERSION=0.3.0
 OS_ARCH=$(shell go env GOOS)_$(shell go env GOARCH)
 
 .PHONY: build

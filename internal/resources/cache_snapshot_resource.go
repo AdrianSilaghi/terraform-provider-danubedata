@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
@@ -81,7 +82,7 @@ func (r *CacheSnapshotResource) Schema(ctx context.Context, req resource.SchemaR
 				},
 			},
 			"status": schema.StringAttribute{
-				Description: "Status of the snapshot (pending, completed, failed).",
+				Description: "Status of the snapshot (creating, ready, failed).",
 				Computed:    true,
 			},
 			"size_mb": schema.Float64Attribute{
@@ -152,12 +153,12 @@ func (r *CacheSnapshotResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
-	data.ID = types.StringValue(snapshot.ID)
+	data.ID = types.StringValue(strconv.FormatInt(snapshot.ID, 10))
 
-	if err := r.client.WaitForCacheSnapshotStatus(ctx, snapshot.ID, "completed", createTimeout); err != nil {
+	if err := r.client.WaitForCacheSnapshotStatus(ctx, snapshot.ID, "ready", createTimeout); err != nil {
 		resp.Diagnostics.AddError(
 			"Cache snapshot failed to complete",
-			fmt.Sprintf("Snapshot %s did not complete: %s", snapshot.ID, err),
+			fmt.Sprintf("Snapshot %d did not complete: %s", snapshot.ID, err),
 		)
 		return
 	}
@@ -179,7 +180,13 @@ func (r *CacheSnapshotResource) Read(ctx context.Context, req resource.ReadReque
 		return
 	}
 
-	snapshot, err := r.client.GetCacheSnapshot(ctx, data.ID.ValueString())
+	id, err := strconv.ParseInt(data.ID.ValueString(), 10, 64)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid cache snapshot ID", err.Error())
+		return
+	}
+
+	snapshot, err := r.client.GetCacheSnapshot(ctx, id)
 	if err != nil {
 		if client.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
@@ -221,7 +228,13 @@ func (r *CacheSnapshotResource) Delete(ctx context.Context, req resource.DeleteR
 	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
 	defer cancel()
 
-	err := r.client.DeleteCacheSnapshot(ctx, data.ID.ValueString())
+	id, err := strconv.ParseInt(data.ID.ValueString(), 10, 64)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid cache snapshot ID", err.Error())
+		return
+	}
+
+	err = r.client.DeleteCacheSnapshot(ctx, id)
 	if err != nil {
 		if client.IsNotFound(err) {
 			return
@@ -236,7 +249,7 @@ func (r *CacheSnapshotResource) ImportState(ctx context.Context, req resource.Im
 }
 
 func (r *CacheSnapshotResource) mapSnapshotToState(snapshot *client.CacheSnapshot, data *CacheSnapshotResourceModel) {
-	data.ID = types.StringValue(snapshot.ID)
+	data.ID = types.StringValue(strconv.FormatInt(snapshot.ID, 10))
 	data.Name = types.StringValue(snapshot.Name)
 	data.Description = types.StringValue(snapshot.Description)
 	data.CacheInstanceID = types.StringValue(snapshot.CacheInstanceID)

@@ -3,7 +3,9 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -16,8 +18,18 @@ func TestClient_CreateDatabase(t *testing.T) {
 			t.Errorf("Path = %v, want /database", r.URL.Path)
 		}
 
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+		for _, field := range []string{"memory_size_mb", "cpu_cores", "storage_size_gb"} {
+			if strings.Contains(string(body), field) {
+				t.Errorf("request body must not contain %s, got: %s", field, body)
+			}
+		}
+
 		var req CreateDatabaseRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.Unmarshal(body, &req); err != nil {
 			t.Fatalf("failed to decode request: %v", err)
 		}
 
@@ -104,6 +116,7 @@ func TestClient_GetDatabase(t *testing.T) {
 				StorageSizeGB: 20,
 				Version:       "8.0",
 				Engine:        DatabaseEngine{ID: 1, Name: "mysql"},
+				Provider:      Provider{ID: 1, Name: "MySQL", Type: "mysql"},
 				Endpoint:      &endpoint,
 				Port:          &port,
 			},
@@ -127,6 +140,9 @@ func TestClient_GetDatabase(t *testing.T) {
 	}
 	if db.StorageSizeGB != 20 {
 		t.Errorf("StorageSizeGB = %v, want 20", db.StorageSizeGB)
+	}
+	if db.Provider.Type != "mysql" {
+		t.Errorf("Provider.Type = %v, want mysql", db.Provider.Type)
 	}
 }
 
@@ -191,6 +207,48 @@ func TestClient_UpdateDatabase(t *testing.T) {
 	}
 	if db.ResourceProfile != "large" {
 		t.Errorf("ResourceProfile = %v, want large", db.ResourceProfile)
+	}
+}
+
+func TestClient_UpdateDatabase_StorageSizeGB(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode request: %v", err)
+		}
+		if got, ok := body["storage_size_gb"]; !ok || got != float64(50) {
+			t.Errorf("storage_size_gb = %v (present=%v), want 50", got, ok)
+		}
+		for _, field := range []string{"memory_size_mb", "cpu_cores"} {
+			if _, ok := body[field]; ok {
+				t.Errorf("request body must not contain %s", field)
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(updateDatabaseResponse{
+			Message: "Database instance updated",
+			Instance: DatabaseInstance{
+				ID:            "db-123",
+				Name:          "my-database",
+				StorageSizeGB: 50,
+				Engine:        DatabaseEngine{ID: 1, Name: "mysql"},
+			},
+		})
+	})
+	defer server.Close()
+
+	c := newTestClient(server)
+	storageSizeGB := 50
+	db, err := c.UpdateDatabase(context.Background(), "db-123", UpdateDatabaseRequest{
+		StorageSizeGB: &storageSizeGB,
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if db.StorageSizeGB != 50 {
+		t.Errorf("StorageSizeGB = %v, want 50", db.StorageSizeGB)
 	}
 }
 

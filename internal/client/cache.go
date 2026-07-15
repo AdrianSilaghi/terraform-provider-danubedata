@@ -11,6 +11,7 @@ import (
 type CacheProvider struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
+	Type string `json:"type"`
 }
 
 // CacheInstance represents a cache instance from the API
@@ -51,8 +52,6 @@ type Provider struct {
 type CreateCacheRequest struct {
 	Name             string  `json:"name"`
 	Provider         string  `json:"provider"` // redis, valkey, dragonfly
-	MemorySizeMB     int     `json:"memory_size_mb"`
-	CPUCores         int     `json:"cpu_cores"`
 	Version          string  `json:"version,omitempty"`
 	Datacenter       string  `json:"datacenter"`
 	ResourceProfile  string  `json:"resource_profile"`
@@ -62,8 +61,6 @@ type CreateCacheRequest struct {
 // UpdateCacheRequest represents a request to update a cache instance
 type UpdateCacheRequest struct {
 	Name             string  `json:"name,omitempty"`
-	MemorySizeMB     *int    `json:"memory_size_mb,omitempty"`
-	CPUCores         *int    `json:"cpu_cores,omitempty"`
 	ResourceProfile  string  `json:"resource_profile,omitempty"`
 	ParameterGroupID *string `json:"parameter_group_id,omitempty"`
 }

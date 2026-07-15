@@ -1,8 +1,8 @@
 package shim
 
 import (
-	"github.com/hashicorp/terraform-plugin-framework/provider"
 	tfprovider "github.com/AdrianSilaghi/terraform-provider-danubedata/internal/provider"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 )
 
 // NewProvider returns the DanubeData Terraform provider factory for use with

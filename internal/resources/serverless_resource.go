@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -33,23 +33,27 @@ type ServerlessResource struct {
 }
 
 type ServerlessResourceModel struct {
-	ID                    types.String   `tfsdk:"id"`
-	Name                  types.String   `tfsdk:"name"`
-	Status                types.String   `tfsdk:"status"`
-	ResourceProfile       types.String   `tfsdk:"resource_profile"`
-	DeploymentType        types.String   `tfsdk:"deployment_type"`
-	ImageURL              types.String   `tfsdk:"image_url"`
-	GitRepository         types.String   `tfsdk:"git_repository"`
-	GitBranch             types.String   `tfsdk:"git_branch"`
-	Port                  types.Int64    `tfsdk:"port"`
-	MinInstances          types.Int64    `tfsdk:"min_instances"`
-	MaxInstances          types.Int64    `tfsdk:"max_instances"`
-	EnvironmentVariables  types.Map      `tfsdk:"environment_variables"`
-	URL                   types.String   `tfsdk:"url"`
-	CurrentMonthCostCents types.Int64    `tfsdk:"current_month_cost_cents"`
-	CreatedAt             types.String   `tfsdk:"created_at"`
-	UpdatedAt             types.String   `tfsdk:"updated_at"`
-	Timeouts              timeouts.Value `tfsdk:"timeouts"`
+	ID                   types.String   `tfsdk:"id"`
+	Name                 types.String   `tfsdk:"name"`
+	Status               types.String   `tfsdk:"status"`
+	ResourceProfile      types.String   `tfsdk:"resource_profile"`
+	DeploymentType       types.String   `tfsdk:"deployment_type"`
+	Image                types.String   `tfsdk:"image"`
+	ImageTag             types.String   `tfsdk:"image_tag"`
+	RepositoryURL        types.String   `tfsdk:"repository_url"`
+	RepositoryBranch     types.String   `tfsdk:"repository_branch"`
+	SourceType           types.String   `tfsdk:"source_type"`
+	GitAuthType          types.String   `tfsdk:"git_auth_type"`
+	GitCredentials       types.String   `tfsdk:"git_credentials"`
+	Port                 types.Int64    `tfsdk:"port"`
+	MinScale             types.Int64    `tfsdk:"min_scale"`
+	MaxScale             types.Int64    `tfsdk:"max_scale"`
+	EnvironmentVariables types.Map      `tfsdk:"environment_variables"`
+	URL                  types.String   `tfsdk:"url"`
+	MonthlyCost          types.Float64  `tfsdk:"monthly_cost"`
+	CreatedAt            types.String   `tfsdk:"created_at"`
+	UpdatedAt            types.String   `tfsdk:"updated_at"`
+	Timeouts             timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewServerlessResource() resource.Resource {
@@ -83,37 +87,63 @@ func (r *ServerlessResource) Schema(ctx context.Context, req resource.SchemaRequ
 				Computed:    true,
 			},
 			"resource_profile": schema.StringAttribute{
-				Description: "Resource profile for the container (small, medium, large).",
+				Description: "Resource profile for the container (free, small, medium, or large).",
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString("small"),
 			},
 			"deployment_type": schema.StringAttribute{
-				Description: "Deployment type: 'image' for Docker image, 'git' for Git repository.",
+				Description: "Deployment type: 'docker_image' for a pre-built image, 'git_repository' to build from a Git repository, or 'zip_upload' to build from an uploaded ZIP archive.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("image", "git"),
+					stringvalidator.OneOf("docker_image", "git_repository", "zip_upload"),
 				},
 			},
-			"image_url": schema.StringAttribute{
-				Description: "Docker image URL (required if deployment_type is 'image').",
+			"image": schema.StringAttribute{
+				Description: "Container image reference without a tag, e.g. 'nginx' (required for docker_image deployments; use image_tag for the tag). Ignored for git_repository/zip_upload — the platform builds and sets it.",
+				Optional:    true,
+				Computed:    true,
+			},
+			"image_tag": schema.StringAttribute{
+				Description: "Image tag to deploy. Defaults to 'latest'.",
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString("latest"),
+			},
+			"repository_url": schema.StringAttribute{
+				Description: "Git repository URL (required for git_repository deployments). Can be changed after creation without replacing the container.",
 				Optional:    true,
 			},
-			"git_repository": schema.StringAttribute{
-				Description: "Git repository URL (required if deployment_type is 'git').",
-				Optional:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-			},
-			"git_branch": schema.StringAttribute{
-				Description: "Git branch to deploy.",
+			"repository_branch": schema.StringAttribute{
+				Description: "Git branch to build and deploy. Only applies to git_repository deployments.",
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString("main"),
+			},
+			"source_type": schema.StringAttribute{
+				Description: "How to build the container from source: 'dockerfile' or 'buildpack'. Required for git_repository deployments; defaults to 'dockerfile' for zip_upload.",
+				Optional:    true,
+				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("dockerfile", "buildpack"),
+				},
+			},
+			"git_auth_type": schema.StringAttribute{
+				Description: "Git authentication method for private repositories: 'none', 'ssh_key', or 'access_token'. Only applies to git_repository deployments.",
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString("none"),
+				Validators: []validator.String{
+					stringvalidator.OneOf("none", "ssh_key", "access_token"),
+				},
+			},
+			"git_credentials": schema.StringAttribute{
+				Description: "SSH private key or access token for private repository access. Required when git_auth_type is 'ssh_key' or 'access_token'. Never returned by the API.",
+				Optional:    true,
+				Sensitive:   true,
 			},
 			"port": schema.Int64Attribute{
 				Description: "Port the container listens on.",
@@ -124,20 +154,20 @@ func (r *ServerlessResource) Schema(ctx context.Context, req resource.SchemaRequ
 					int64validator.Between(1, 65535),
 				},
 			},
-			"min_instances": schema.Int64Attribute{
+			"min_scale": schema.Int64Attribute{
 				Description: "Minimum number of instances (0 for scale-to-zero).",
 				Optional:    true,
 				Computed:    true,
 				Default:     int64default.StaticInt64(0),
 				Validators: []validator.Int64{
-					int64validator.Between(0, 10),
+					int64validator.Between(0, 100),
 				},
 			},
-			"max_instances": schema.Int64Attribute{
+			"max_scale": schema.Int64Attribute{
 				Description: "Maximum number of instances.",
 				Optional:    true,
 				Computed:    true,
-				Default:     int64default.StaticInt64(5),
+				Default:     int64default.StaticInt64(10),
 				Validators: []validator.Int64{
 					int64validator.Between(1, 100),
 				},
@@ -151,8 +181,8 @@ func (r *ServerlessResource) Schema(ctx context.Context, req resource.SchemaRequ
 				Description: "Public URL of the deployed service.",
 				Computed:    true,
 			},
-			"current_month_cost_cents": schema.Int64Attribute{
-				Description: "Current month's cost in cents.",
+			"monthly_cost": schema.Float64Attribute{
+				Description: "Current month's accrued cost so far, in the account's billing currency (pay-per-use; accumulates from actual usage).",
 				Computed:    true,
 			},
 			"created_at": schema.StringAttribute{
@@ -213,23 +243,39 @@ func (r *ServerlessResource) Create(ctx context.Context, req resource.CreateRequ
 
 	createReq := client.CreateServerlessRequest{
 		Name:            data.Name.ValueString(),
-		ResourceProfile: data.ResourceProfile.ValueString(),
 		DeploymentType:  data.DeploymentType.ValueString(),
+		ResourceProfile: data.ResourceProfile.ValueString(),
 		Port:            int(data.Port.ValueInt64()),
-		MinInstances:    int(data.MinInstances.ValueInt64()),
-		MaxInstances:    int(data.MaxInstances.ValueInt64()),
+		MinScale:        int(data.MinScale.ValueInt64()),
+		MaxScale:        int(data.MaxScale.ValueInt64()),
 	}
 
-	if !data.ImageURL.IsNull() && !data.ImageURL.IsUnknown() {
-		createReq.ImageURL = data.ImageURL.ValueString()
+	if !data.Image.IsNull() && !data.Image.IsUnknown() {
+		createReq.Image = data.Image.ValueString()
 	}
 
-	if !data.GitRepository.IsNull() && !data.GitRepository.IsUnknown() {
-		createReq.GitRepository = data.GitRepository.ValueString()
+	if !data.ImageTag.IsNull() && !data.ImageTag.IsUnknown() {
+		createReq.ImageTag = data.ImageTag.ValueString()
 	}
 
-	if !data.GitBranch.IsNull() && !data.GitBranch.IsUnknown() {
-		createReq.GitBranch = data.GitBranch.ValueString()
+	if !data.RepositoryURL.IsNull() && !data.RepositoryURL.IsUnknown() {
+		createReq.RepositoryURL = data.RepositoryURL.ValueString()
+	}
+
+	if !data.RepositoryBranch.IsNull() && !data.RepositoryBranch.IsUnknown() {
+		createReq.RepositoryBranch = data.RepositoryBranch.ValueString()
+	}
+
+	if !data.SourceType.IsNull() && !data.SourceType.IsUnknown() {
+		createReq.SourceType = data.SourceType.ValueString()
+	}
+
+	if !data.GitAuthType.IsNull() && !data.GitAuthType.IsUnknown() {
+		createReq.GitAuthType = data.GitAuthType.ValueString()
+	}
+
+	if !data.GitCredentials.IsNull() && !data.GitCredentials.IsUnknown() {
+		createReq.GitCredentials = data.GitCredentials.ValueString()
 	}
 
 	if !data.EnvironmentVariables.IsNull() && !data.EnvironmentVariables.IsUnknown() {
@@ -332,13 +378,38 @@ func (r *ServerlessResource) Update(ctx context.Context, req resource.UpdateRequ
 		hasChanges = true
 	}
 
-	if !data.ImageURL.Equal(state.ImageURL) && !data.ImageURL.IsNull() {
-		updateReq.ImageURL = data.ImageURL.ValueString()
+	if !data.Image.Equal(state.Image) && !data.Image.IsNull() && !data.Image.IsUnknown() {
+		updateReq.Image = data.Image.ValueString()
 		hasChanges = true
 	}
 
-	if !data.GitBranch.Equal(state.GitBranch) {
-		updateReq.GitBranch = data.GitBranch.ValueString()
+	if !data.ImageTag.Equal(state.ImageTag) && !data.ImageTag.IsNull() && !data.ImageTag.IsUnknown() {
+		updateReq.ImageTag = data.ImageTag.ValueString()
+		hasChanges = true
+	}
+
+	if !data.RepositoryURL.Equal(state.RepositoryURL) && !data.RepositoryURL.IsNull() {
+		updateReq.RepositoryURL = data.RepositoryURL.ValueString()
+		hasChanges = true
+	}
+
+	if !data.RepositoryBranch.Equal(state.RepositoryBranch) {
+		updateReq.RepositoryBranch = data.RepositoryBranch.ValueString()
+		hasChanges = true
+	}
+
+	if !data.SourceType.Equal(state.SourceType) && !data.SourceType.IsNull() && !data.SourceType.IsUnknown() {
+		updateReq.SourceType = data.SourceType.ValueString()
+		hasChanges = true
+	}
+
+	if !data.GitAuthType.Equal(state.GitAuthType) {
+		updateReq.GitAuthType = data.GitAuthType.ValueString()
+		hasChanges = true
+	}
+
+	if !data.GitCredentials.Equal(state.GitCredentials) && !data.GitCredentials.IsNull() {
+		updateReq.GitCredentials = data.GitCredentials.ValueString()
 		hasChanges = true
 	}
 
@@ -347,15 +418,15 @@ func (r *ServerlessResource) Update(ctx context.Context, req resource.UpdateRequ
 		hasChanges = true
 	}
 
-	if !data.MinInstances.Equal(state.MinInstances) {
-		minInst := int(data.MinInstances.ValueInt64())
-		updateReq.MinInstances = &minInst
+	if !data.MinScale.Equal(state.MinScale) {
+		minScale := int(data.MinScale.ValueInt64())
+		updateReq.MinScale = &minScale
 		hasChanges = true
 	}
 
-	if !data.MaxInstances.Equal(state.MaxInstances) {
-		maxInst := int(data.MaxInstances.ValueInt64())
-		updateReq.MaxInstances = &maxInst
+	if !data.MaxScale.Equal(state.MaxScale) {
+		maxScale := int(data.MaxScale.ValueInt64())
+		updateReq.MaxScale = &maxScale
 		hasChanges = true
 	}
 
@@ -445,31 +516,38 @@ func (r *ServerlessResource) mapContainerToState(ctx context.Context, container 
 	data.Status = types.StringValue(container.Status)
 	data.ResourceProfile = types.StringValue(container.ResourceProfile)
 	data.DeploymentType = types.StringValue(container.DeploymentType)
+	data.ImageTag = types.StringValue(container.ImageTag)
+	data.RepositoryBranch = types.StringValue(container.RepositoryBranch)
+	data.GitAuthType = types.StringValue(container.GitAuthType)
 	data.Port = types.Int64Value(int64(container.Port))
-	data.MinInstances = types.Int64Value(int64(container.MinInstances))
-	data.MaxInstances = types.Int64Value(int64(container.MaxInstances))
+	data.MinScale = types.Int64Value(int64(container.MinScale))
+	data.MaxScale = types.Int64Value(int64(container.MaxScale))
 	data.URL = types.StringValue(container.URL)
-	data.CurrentMonthCostCents = types.Int64Value(int64(container.CurrentMonthCostCents))
+	data.MonthlyCost = types.Float64Value(container.MonthlyCost)
 	data.CreatedAt = types.StringValue(container.CreatedAt)
 	data.UpdatedAt = types.StringValue(container.UpdatedAt)
 
-	if container.ImageURL != "" {
-		data.ImageURL = types.StringValue(container.ImageURL)
+	if container.Image != nil {
+		data.Image = types.StringValue(*container.Image)
 	} else {
-		data.ImageURL = types.StringNull()
+		data.Image = types.StringNull()
 	}
 
-	if container.GitRepository != "" {
-		data.GitRepository = types.StringValue(container.GitRepository)
+	if container.SourceType != nil {
+		data.SourceType = types.StringValue(*container.SourceType)
 	} else {
-		data.GitRepository = types.StringNull()
+		data.SourceType = types.StringNull()
 	}
 
-	if container.GitBranch != "" {
-		data.GitBranch = types.StringValue(container.GitBranch)
+	if container.RepositoryURL != nil {
+		data.RepositoryURL = types.StringValue(*container.RepositoryURL)
 	} else {
-		data.GitBranch = types.StringNull()
+		data.RepositoryURL = types.StringNull()
 	}
+
+	// git_credentials is a write-only secret: the API never echoes it back
+	// ($hidden on the model), so state is left untouched here and simply
+	// carries forward whatever the plan/prior state already had.
 
 	if len(container.EnvironmentVariables) > 0 {
 		envVars, envDiags := types.MapValueFrom(ctx, types.StringType, container.EnvironmentVariables)

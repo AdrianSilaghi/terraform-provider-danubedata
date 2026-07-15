@@ -7,34 +7,41 @@ import (
 
 // StaticSite represents a DanubeData static site (pages).
 type StaticSite struct {
-	ID                  int     `json:"id"`
-	TeamID              int     `json:"team_id"`
-	Name                string  `json:"name"`
-	Slug                string  `json:"slug"`
-	URL                 string  `json:"url"`
-	OutputDirectory     *string `json:"output_directory"`
-	Status              string  `json:"status"`
-	CurrentDeploymentID *int    `json:"current_deployment_id"`
-	CreatedAt           string  `json:"created_at"`
-	UpdatedAt           string  `json:"updated_at"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
+	Status    string `json:"status"`
+	Plan      string `json:"plan"`
+	URL       string `json:"url"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// StaticSiteDomainDNSInstructions is the DNS record a domain owner must add to prove
+// ownership of a custom domain.
+type StaticSiteDomainDNSInstructions struct {
+	RecordType   string `json:"record_type"`
+	RecordName   string `json:"record_name"`
+	RecordValue  string `json:"record_value"`
+	Instructions string `json:"instructions"`
 }
 
 // StaticSiteDomain represents a domain attached to a static site.
 type StaticSiteDomain struct {
-	ID                 int     `json:"id"`
-	StaticSiteID       int     `json:"static_site_id"`
-	Domain             string  `json:"domain"`
-	Type               string  `json:"type"`
-	Status             string  `json:"status"`
-	VerificationRecord *string `json:"verification_record"`
-	VerifiedAt         *string `json:"verified_at"`
-	CreatedAt          string  `json:"created_at"`
-	UpdatedAt          string  `json:"updated_at"`
+	ID                 string                          `json:"id"`
+	Domain             string                          `json:"domain"`
+	VerificationStatus string                          `json:"verification_status"`
+	TLSStatus          string                          `json:"tls_status"`
+	DeploymentStatus   string                          `json:"deployment_status"`
+	IsPrimary          bool                            `json:"is_primary"`
+	DNSInstructions    StaticSiteDomainDNSInstructions `json:"dns_instructions"`
+	CreatedAt          string                          `json:"created_at"`
 }
 
 // CreateStaticSiteRequest is the payload for creating a static site.
 type CreateStaticSiteRequest struct {
-	Name string `json:"name"`
+	Name string  `json:"name"`
+	Plan *string `json:"plan,omitempty"`
 }
 
 // AddStaticSiteDomainRequest is the payload for adding a custom domain.
@@ -61,10 +68,10 @@ type listStaticSiteDomainsResponse struct {
 	Data []StaticSiteDomain `json:"data"`
 }
 
-// CreateStaticSite creates a new static site under the given team.
-func (c *Client) CreateStaticSite(ctx context.Context, teamID int, req CreateStaticSiteRequest) (*StaticSite, error) {
+// CreateStaticSite creates a new static site under the caller's current team.
+func (c *Client) CreateStaticSite(ctx context.Context, req CreateStaticSiteRequest) (*StaticSite, error) {
 	var resp staticSiteResponse
-	if err := c.doRequest(ctx, "POST", fmt.Sprintf("/teams/%d/static-sites", teamID), req, &resp); err != nil {
+	if err := c.doRequest(ctx, "POST", "/static-sites", req, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Data, nil

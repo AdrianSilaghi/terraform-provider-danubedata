@@ -3,12 +3,13 @@ package client
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 )
 
 // VpsSnapshot represents a VPS snapshot from the API
 type VpsSnapshot struct {
-	ID            string  `json:"id"`
+	ID            int64   `json:"id"`
 	Name          string  `json:"name"`
 	Description   string  `json:"description"`
 	Status        string  `json:"status"`
@@ -20,7 +21,7 @@ type VpsSnapshot struct {
 
 // CacheSnapshot represents a cache snapshot from the API
 type CacheSnapshot struct {
-	ID              string  `json:"id"`
+	ID              int64   `json:"id"`
 	Name            string  `json:"name"`
 	Description     string  `json:"description"`
 	Status          string  `json:"status"`
@@ -32,7 +33,7 @@ type CacheSnapshot struct {
 
 // DatabaseSnapshot represents a database snapshot from the API
 type DatabaseSnapshot struct {
-	ID                 string  `json:"id"`
+	ID                 int64   `json:"id"`
 	Name               string  `json:"name"`
 	Description        string  `json:"description"`
 	Status             string  `json:"status"`
@@ -105,7 +106,7 @@ func (c *Client) CreateVpsSnapshot(ctx context.Context, req CreateVpsSnapshotReq
 }
 
 // GetVpsSnapshot retrieves a VPS snapshot by ID
-func (c *Client) GetVpsSnapshot(ctx context.Context, id string) (*VpsSnapshot, error) {
+func (c *Client) GetVpsSnapshot(ctx context.Context, id int64) (*VpsSnapshot, error) {
 	// List all snapshots and find the one with matching ID
 	snapshots, err := c.ListVpsSnapshots(ctx)
 	if err != nil {
@@ -116,7 +117,7 @@ func (c *Client) GetVpsSnapshot(ctx context.Context, id string) (*VpsSnapshot, e
 			return &s, nil
 		}
 	}
-	return nil, &NotFoundError{Resource: "VPS snapshot", ID: id}
+	return nil, &NotFoundError{Resource: "VPS snapshot", ID: strconv.FormatInt(id, 10)}
 }
 
 // ListVpsSnapshots lists all VPS snapshots (handles pagination automatically)
@@ -140,17 +141,17 @@ func (c *Client) ListVpsSnapshots(ctx context.Context) ([]VpsSnapshot, error) {
 }
 
 // RestoreVpsSnapshot restores a VPS snapshot
-func (c *Client) RestoreVpsSnapshot(ctx context.Context, id string) error {
-	return c.doRequest(ctx, "POST", fmt.Sprintf("/snapshots/vps/%s/restore", id), nil, nil)
+func (c *Client) RestoreVpsSnapshot(ctx context.Context, id int64) error {
+	return c.doRequest(ctx, "POST", fmt.Sprintf("/snapshots/vps/%d/restore", id), nil, nil)
 }
 
 // DeleteVpsSnapshot deletes a VPS snapshot
-func (c *Client) DeleteVpsSnapshot(ctx context.Context, id string) error {
-	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/snapshots/vps/%s", id), nil, nil)
+func (c *Client) DeleteVpsSnapshot(ctx context.Context, id int64) error {
+	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/snapshots/vps/%d", id), nil, nil)
 }
 
 // WaitForVpsSnapshotStatus waits for a VPS snapshot to reach a target status
-func (c *Client) WaitForVpsSnapshotStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
+func (c *Client) WaitForVpsSnapshotStatus(ctx context.Context, id int64, targetStatus string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -161,7 +162,7 @@ func (c *Client) WaitForVpsSnapshotStatus(ctx context.Context, id string, target
 			return ctx.Err()
 		case <-ticker.C:
 			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for VPS snapshot %s to reach status %s", id, targetStatus)
+				return fmt.Errorf("timeout waiting for VPS snapshot %d to reach status %s", id, targetStatus)
 			}
 
 			snapshot, err := c.GetVpsSnapshot(ctx, id)
@@ -176,8 +177,8 @@ func (c *Client) WaitForVpsSnapshotStatus(ctx context.Context, id string, target
 				return nil
 			}
 
-			if snapshot.Status == "error" || snapshot.Status == "failed" {
-				return fmt.Errorf("VPS snapshot %s entered error state", id)
+			if snapshot.Status == "failed" || snapshot.Status == "create_failed" || snapshot.Status == "restore_failed" {
+				return fmt.Errorf("VPS snapshot %d entered failed state: %s", id, snapshot.Status)
 			}
 		}
 	}
@@ -195,7 +196,7 @@ func (c *Client) CreateCacheSnapshot(ctx context.Context, req CreateCacheSnapsho
 }
 
 // GetCacheSnapshot retrieves a cache snapshot by ID
-func (c *Client) GetCacheSnapshot(ctx context.Context, id string) (*CacheSnapshot, error) {
+func (c *Client) GetCacheSnapshot(ctx context.Context, id int64) (*CacheSnapshot, error) {
 	snapshots, err := c.ListCacheSnapshots(ctx)
 	if err != nil {
 		return nil, err
@@ -205,7 +206,7 @@ func (c *Client) GetCacheSnapshot(ctx context.Context, id string) (*CacheSnapsho
 			return &s, nil
 		}
 	}
-	return nil, &NotFoundError{Resource: "Cache snapshot", ID: id}
+	return nil, &NotFoundError{Resource: "Cache snapshot", ID: strconv.FormatInt(id, 10)}
 }
 
 // ListCacheSnapshots lists all cache snapshots (handles pagination automatically)
@@ -229,17 +230,17 @@ func (c *Client) ListCacheSnapshots(ctx context.Context) ([]CacheSnapshot, error
 }
 
 // RestoreCacheSnapshot restores a cache snapshot
-func (c *Client) RestoreCacheSnapshot(ctx context.Context, id string) error {
-	return c.doRequest(ctx, "POST", fmt.Sprintf("/snapshots/cache/%s/restore", id), nil, nil)
+func (c *Client) RestoreCacheSnapshot(ctx context.Context, id int64) error {
+	return c.doRequest(ctx, "POST", fmt.Sprintf("/snapshots/cache/%d/restore", id), nil, nil)
 }
 
 // DeleteCacheSnapshot deletes a cache snapshot
-func (c *Client) DeleteCacheSnapshot(ctx context.Context, id string) error {
-	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/snapshots/cache/%s", id), nil, nil)
+func (c *Client) DeleteCacheSnapshot(ctx context.Context, id int64) error {
+	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/snapshots/cache/%d", id), nil, nil)
 }
 
 // WaitForCacheSnapshotStatus waits for a cache snapshot to reach a target status
-func (c *Client) WaitForCacheSnapshotStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
+func (c *Client) WaitForCacheSnapshotStatus(ctx context.Context, id int64, targetStatus string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -250,7 +251,7 @@ func (c *Client) WaitForCacheSnapshotStatus(ctx context.Context, id string, targ
 			return ctx.Err()
 		case <-ticker.C:
 			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for cache snapshot %s to reach status %s", id, targetStatus)
+				return fmt.Errorf("timeout waiting for cache snapshot %d to reach status %s", id, targetStatus)
 			}
 
 			snapshot, err := c.GetCacheSnapshot(ctx, id)
@@ -264,8 +265,8 @@ func (c *Client) WaitForCacheSnapshotStatus(ctx context.Context, id string, targ
 			if snapshot.Status == targetStatus {
 				return nil
 			}
-			if snapshot.Status == "error" || snapshot.Status == "failed" {
-				return fmt.Errorf("cache snapshot %s entered error state", id)
+			if snapshot.Status == "failed" || snapshot.Status == "restore_failed" {
+				return fmt.Errorf("cache snapshot %d entered failed state: %s", id, snapshot.Status)
 			}
 		}
 	}
@@ -283,7 +284,7 @@ func (c *Client) CreateDatabaseSnapshot(ctx context.Context, req CreateDatabaseS
 }
 
 // GetDatabaseSnapshot retrieves a database snapshot by ID
-func (c *Client) GetDatabaseSnapshot(ctx context.Context, id string) (*DatabaseSnapshot, error) {
+func (c *Client) GetDatabaseSnapshot(ctx context.Context, id int64) (*DatabaseSnapshot, error) {
 	snapshots, err := c.ListDatabaseSnapshots(ctx)
 	if err != nil {
 		return nil, err
@@ -293,7 +294,7 @@ func (c *Client) GetDatabaseSnapshot(ctx context.Context, id string) (*DatabaseS
 			return &s, nil
 		}
 	}
-	return nil, &NotFoundError{Resource: "Database snapshot", ID: id}
+	return nil, &NotFoundError{Resource: "Database snapshot", ID: strconv.FormatInt(id, 10)}
 }
 
 // ListDatabaseSnapshots lists all database snapshots (handles pagination automatically)
@@ -317,17 +318,17 @@ func (c *Client) ListDatabaseSnapshots(ctx context.Context) ([]DatabaseSnapshot,
 }
 
 // RestoreDatabaseSnapshot restores a database snapshot
-func (c *Client) RestoreDatabaseSnapshot(ctx context.Context, id string) error {
-	return c.doRequest(ctx, "POST", fmt.Sprintf("/snapshots/database/%s/restore", id), nil, nil)
+func (c *Client) RestoreDatabaseSnapshot(ctx context.Context, id int64) error {
+	return c.doRequest(ctx, "POST", fmt.Sprintf("/snapshots/database/%d/restore", id), nil, nil)
 }
 
 // DeleteDatabaseSnapshot deletes a database snapshot
-func (c *Client) DeleteDatabaseSnapshot(ctx context.Context, id string) error {
-	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/snapshots/database/%s", id), nil, nil)
+func (c *Client) DeleteDatabaseSnapshot(ctx context.Context, id int64) error {
+	return c.doRequest(ctx, "DELETE", fmt.Sprintf("/snapshots/database/%d", id), nil, nil)
 }
 
 // WaitForDatabaseSnapshotStatus waits for a database snapshot to reach a target status
-func (c *Client) WaitForDatabaseSnapshotStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
+func (c *Client) WaitForDatabaseSnapshotStatus(ctx context.Context, id int64, targetStatus string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -338,7 +339,7 @@ func (c *Client) WaitForDatabaseSnapshotStatus(ctx context.Context, id string, t
 			return ctx.Err()
 		case <-ticker.C:
 			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for database snapshot %s to reach status %s", id, targetStatus)
+				return fmt.Errorf("timeout waiting for database snapshot %d to reach status %s", id, targetStatus)
 			}
 
 			snapshot, err := c.GetDatabaseSnapshot(ctx, id)
@@ -352,8 +353,8 @@ func (c *Client) WaitForDatabaseSnapshotStatus(ctx context.Context, id string, t
 			if snapshot.Status == targetStatus {
 				return nil
 			}
-			if snapshot.Status == "error" || snapshot.Status == "failed" {
-				return fmt.Errorf("database snapshot %s entered error state", id)
+			if snapshot.Status == "failed" || snapshot.Status == "restore_failed" {
+				return fmt.Errorf("database snapshot %d entered failed state: %s", id, snapshot.Status)
 			}
 		}
 	}
