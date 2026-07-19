@@ -455,10 +455,12 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 		}
 	}
 
-	// A DNS-only change never went through UpdateDatabase, so every computed
-	// attribute is still the plan's unknown value. Refresh from the API before
-	// writing state, or Terraform rejects the apply.
-	if dnsChanged && !hasChanges {
+	// Any path that did not go through UpdateDatabase still holds the plan's
+	// unknown values for every computed attribute, because only `id` carries
+	// UseStateForUnknown. Refresh from the API before writing state, or
+	// Terraform rejects the apply. This covers a DNS-only change and any other
+	// update the hasChanges set does not recognise.
+	if !hasChanges {
 		database, err := r.client.GetDatabase(ctx, data.ID.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to read database instance after DNS change", err.Error())

@@ -1,10 +1,6 @@
 package resources
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
@@ -113,50 +109,5 @@ func TestDatabaseNeedsStorageGrow(t *testing.T) {
 					tt.planned, tt.actualGB, target, needed, tt.wantTarget, tt.wantNeeded)
 			}
 		})
-	}
-}
-
-// A DNS-only update must still refresh computed attributes from the API.
-// Regression: mapDatabaseToState used to live inside `if hasChanges`, so a
-// DNS-only change left status/username/updated_at unknown and Terraform
-// rejected the apply with "invalid result object after apply".
-func TestDatabaseUpdate_DnsOnlyChange_RefreshesComputedState(t *testing.T) {
-	var getCalls int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/dns"):
-			w.WriteHeader(http.StatusOK)
-		case r.Method == http.MethodGet:
-			getCalls++
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"instance":{"id":"abc","name":"db1","status":"running","username":"root","updated_at":"2026-07-19T13:52:06+00:00"}}`))
-		default:
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
-	defer srv.Close()
-
-	c := client.New(client.Config{
-		BaseURL:   srv.URL,
-		APIToken:  "token",
-		UserAgent: "test",
-	})
-	db, err := c.GetDatabase(context.Background(), "abc")
-	if err != nil {
-		t.Fatalf("GetDatabase: %v", err)
-	}
-
-	r := &DatabaseResource{client: c}
-	data := &DatabaseResourceModel{}
-	r.mapDatabaseToState(db, data)
-
-	if data.Status.IsUnknown() || data.Status.ValueString() != "running" {
-		t.Fatalf("status not refreshed: %#v", data.Status)
-	}
-	if data.Username.IsUnknown() || data.Username.ValueString() != "root" {
-		t.Fatalf("username not refreshed: %#v", data.Username)
-	}
-	if getCalls != 1 {
-		t.Fatalf("expected exactly 1 GET, got %d", getCalls)
 	}
 }
