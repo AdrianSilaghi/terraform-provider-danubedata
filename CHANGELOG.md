@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-19
+
+### Fixed
+
+- **`danubedata_database` examples were not applyable.** The 0.3.0 schema realignment made `cpu_cores`/`memory_size_mb` read-only and `resource_profile` required, but only `examples/complete` was updated to match. `examples/database` failed with "Invalid Configuration for Read-Only Attribute" and `examples/database-mysql` additionally failed with "Missing required argument". Both now validate.
+- **`docs/resources/database.md` documented a schema that no longer exists.** It listed `cpu_cores`/`memory_size_mb` as settable arguments, marked `resource_profile` optional when it is required, showed a `db-medium` profile value that has never been valid, and gave 20m create/update timeout defaults where the code uses 30m. The import example used an integer ID; database instance IDs are UUIDs.
+
+### Changed
+
+- `resource_profile` schema description now enumerates the valid slugs (`micro`, `small`, `medium`, `large`) with their dashboard display names (DD Puiu, DD Uzlina, DD Matita, DD Sinoe). It previously listed only "small, medium, large", omitting `micro` entirely — the slug-vs-display-name gap was a reported source of user confusion, including customers selecting a profile roughly 4x their intended spend.
+- `monthly_cost` schema description corrected from "dollars" to "euros".
+- `docs/resources/database.md` now documents the `database_name` charset restriction (letters, numbers, underscores; no hyphens, unlike the instance `name`), a common first-apply failure.
+- `examples/database-mysql` version constraint bumped from `~> 0.1` to `~> 0.3`.
+
 ## [0.3.0] - 2026-07-15
 
 ### Fixed — API contract drift (2026-07 audit against the live API)
@@ -145,7 +159,8 @@ Unit-test fixtures were rewritten to encode the current API contract, so this cl
 - Example configurations for common use cases
 - Complete infrastructure example
 
-[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/releases/tag/v0.1.0

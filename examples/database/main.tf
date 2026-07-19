@@ -16,9 +16,7 @@ resource "danubedata_database" "postgres" {
   engine           = "postgresql"
   database_name    = "myapp"
   resource_profile = "small"
-  storage_size_gb  = 20
-  memory_size_mb   = 2048
-  cpu_cores        = 2
+  storage_size_gb  = 20 # optional: grows storage beyond the plan minimum (never shrinks)
   datacenter       = "fsn1"
 
   timeouts {
@@ -33,9 +31,7 @@ resource "danubedata_database" "mysql" {
   engine           = "mysql"
   database_name    = "production"
   resource_profile = "small"
-  storage_size_gb  = 50
-  memory_size_mb   = 4096
-  cpu_cores        = 2
+  storage_size_gb  = 50 # grown from the small plan's 20 GB minimum
   datacenter       = "fsn1"
 
   timeouts {
