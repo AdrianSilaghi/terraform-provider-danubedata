@@ -360,6 +360,21 @@ func (r *StorageBucketResource) Update(ctx context.Context, req resource.UpdateR
 		r.mapBucketToState(bucket, &data)
 	}
 
+	// Any path that did not go through UpdateStorageBucket still holds the plan's
+	// unknown values for every computed attribute, because only `id` carries
+	// UseStateForUnknown. Refresh from the API before writing state, or Terraform
+	// rejects the apply. This covers a timeouts-only change and any other update
+	// the hasChanges set does not recognise.
+	if !hasChanges {
+		bucket, err := r.client.GetStorageBucket(ctx, data.ID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to read storage bucket after update", err.Error())
+			return
+		}
+
+		r.mapBucketToState(bucket, &data)
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 

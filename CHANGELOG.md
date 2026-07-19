@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-19
+
+### Fixed
+
+- **An update that changed nothing in the `hasChanges` field set failed with "Provider returned invalid result object after apply."** In `danubedata_database` and `danubedata_cache`, the post-update state refresh lived inside the `hasChanges` branch, which only trips on fields like `resource_profile`. Toggling `dns_enabled` alone bypassed it entirely, so every other computed attribute (`status`, `username` on database, `endpoint`, `updated_at`, etc.) kept the plan's unknown value and Terraform rejected the apply. Auditing every resource's `Update` method found the same shape in `danubedata_storage_bucket` and `danubedata_vps` — there triggerable by a `timeouts`-only change, since both already covered every other mutable field in `hasChanges`. All four resources now re-read the instance from the API whenever `hasChanges` is false, before writing state. Found by a live end-to-end test against production.
+- **`danubedata_vps_snapshot` wrote the plan straight to state on every update.** Unlike its sibling immutable resources (`cache_snapshot`, `database_snapshot`, `static_site`, `static_site_domain`), its `Update` read from `req.Plan` instead of `req.State`, so any update invocation — a `timeouts`-only change is enough — persisted the plan's unknown computed values (`status`, `size_gb`, `updated_at`) directly, hitting the same failure via a different path. Fixed to read and re-persist prior state, matching its siblings.
+
 ## [0.3.2] - 2026-07-19
 
 Documentation and packaging release; no functional provider changes. 0.3.1 fixed the database resource after a customer report; this completes the same sweep across every other resource, data source and guide.
@@ -185,7 +192,8 @@ Unit-test fixtures were rewritten to encode the current API contract, so this cl
 - Example configurations for common use cases
 - Complete infrastructure example
 
-[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.2.0...v0.3.0

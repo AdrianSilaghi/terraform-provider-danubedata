@@ -213,9 +213,11 @@ func (r *VpsSnapshotResource) Read(ctx context.Context, req resource.ReadRequest
 }
 
 func (r *VpsSnapshotResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Snapshots cannot be updated, all changes require replacement
+	// Snapshots are immutable; all user-visible fields require replacement. Preserve
+	// existing state rather than writing the plan (which may contain Unknown computed
+	// fields when only the timeouts block changes).
 	var data VpsSnapshotResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
