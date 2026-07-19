@@ -31,7 +31,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.1"
+      version = "~> 0.3"
     }
   }
 }
@@ -57,55 +57,53 @@ resource "danubedata_ssh_key" "deploy" {
 
 # Firewall for web traffic
 resource "danubedata_firewall" "web" {
-  name           = "${var.project_name}-web-firewall"
-  description    = "Firewall for web application"
-  default_action = "deny"
+  name        = "${var.project_name}-web-firewall"
+  description = "Firewall for web application"
 
-  # SSH access
-  rules {
-    name             = "SSH"
-    action           = "allow"
-    direction        = "inbound"
-    protocol         = "tcp"
-    port_range_start = 22
-    port_range_end   = 22
-    source_ips       = ["0.0.0.0/0"]
-    priority         = 100
-  }
-
-  # HTTP
-  rules {
-    name             = "HTTP"
-    action           = "allow"
-    direction        = "inbound"
-    protocol         = "tcp"
-    port_range_start = 80
-    port_range_end   = 80
-    source_ips       = ["0.0.0.0/0"]
-    priority         = 200
-  }
-
-  # HTTPS
-  rules {
-    name             = "HTTPS"
-    action           = "allow"
-    direction        = "inbound"
-    protocol         = "tcp"
-    port_range_start = 443
-    port_range_end   = 443
-    source_ips       = ["0.0.0.0/0"]
-    priority         = 300
-  }
-
-  # Allow all outbound
-  rules {
-    name       = "Outbound"
-    action     = "allow"
-    direction  = "outbound"
-    protocol   = "all"
-    source_ips = ["0.0.0.0/0"]
-    priority   = 1000
-  }
+  # `rules` is a list attribute, not a repeated block. Rules are evaluated in
+  # the order they appear here.
+  #
+  # Each rule also accepts optional `name` and `order` fields. They are left
+  # out below because the API does not currently honour `order` (rules are
+  # auto-numbered in submission order) and does not echo `name` back, so
+  # setting either surfaces "Provider produced inconsistent result after
+  # apply". Comments serve the same labelling purpose until that is fixed.
+  rules = [
+    # SSH access
+    {
+      action           = "allow"
+      direction        = "inbound"
+      protocol         = "tcp"
+      port_range_start = 22
+      port_range_end   = 22
+      source_ips       = ["0.0.0.0/0"]
+    },
+    # HTTP
+    {
+      action           = "allow"
+      direction        = "inbound"
+      protocol         = "tcp"
+      port_range_start = 80
+      port_range_end   = 80
+      source_ips       = ["0.0.0.0/0"]
+    },
+    # HTTPS
+    {
+      action           = "allow"
+      direction        = "inbound"
+      protocol         = "tcp"
+      port_range_start = 443
+      port_range_end   = 443
+      source_ips       = ["0.0.0.0/0"]
+    },
+    # Allow all outbound
+    {
+      action     = "allow"
+      direction  = "outbound"
+      protocol   = "any"
+      source_ips = ["0.0.0.0/0"]
+    },
+  ]
 }
 
 # Web Server VPS
@@ -116,9 +114,8 @@ resource "danubedata_vps" "web" {
   auth_method = "ssh_key"
   ssh_key_id  = danubedata_ssh_key.deploy.id
 
-  cpu_cores       = 2
-  memory_size_gb  = 4
-  storage_size_gb = 50
+  # CPU, memory and storage are set by the plan and are read-only attributes
+  resource_profile = "small_shared"
 
   custom_cloud_init = <<-EOF
     #cloud-config
@@ -135,24 +132,24 @@ resource "danubedata_vps" "web" {
 
 # PostgreSQL Database
 resource "danubedata_database" "main" {
-  name            = "${var.project_name}-db"
-  database_name   = "${var.project_name}_production"
-  engine          = "postgresql"
-  version         = "16"
-  storage_size_gb = 20
-  memory_size_mb  = 2048
-  cpu_cores       = 2
-  datacenter      = var.datacenter
+  name          = "${var.project_name}-db"
+  database_name = "${var.project_name}_production" # letters, digits and underscores only
+  engine        = "postgresql"
+  version       = "16"
+  datacenter    = var.datacenter
+
+  resource_profile = "small"
+  storage_size_gb  = 20 # optional: grows storage beyond the plan's included amount
 }
 
 # Redis Cache
 resource "danubedata_cache" "main" {
   name           = "${var.project_name}-cache"
   cache_provider = "redis"
-  version        = "7.2"
-  memory_size_mb = 512
-  cpu_cores      = 1
+  version        = "8.0"
   datacenter     = var.datacenter
+
+  resource_profile = "micro"
 }
 
 # Object Storage for assets
@@ -326,29 +323,42 @@ const s3 = new S3Client({
 
 ### Upgrade VPS Resources
 
+Resize by moving to a larger plan — CPU, memory and storage cannot be set
+individually:
+
 ```hcl
 resource "danubedata_vps" "web" {
   # ... existing config ...
 
-  cpu_cores       = 4    # Upgraded from 2
-  memory_size_gb  = 8    # Upgraded from 4
-  storage_size_gb = 100  # Upgraded from 50
+  resource_profile = "medium_shared" # upgraded from small_shared
 }
 ```
 
+The same applies to the database and cache instances, whose profiles are
+`micro`, `small`, `medium` and `large`.
+
 ### Add Database Read Replicas
 
-For high-read workloads, contact DanubeData support to enable read replicas.
+For high-read workloads, attach a replica to the instance:
+
+```hcl
+resource "danubedata_database_replica" "read" {
+  database_instance_id = danubedata_database.main.id
+}
+```
+
+The replica's `endpoint`, `replication_status` and `seconds_behind_master` are
+exported once it is ready.
 
 ### Switch to Dragonfly for Higher Performance
 
 ```hcl
 resource "danubedata_cache" "main" {
   name           = "${var.project_name}-cache"
-  cache_provider = "dragonfly"  # Changed from redis
-  memory_size_mb = 2048
-  cpu_cores      = 4
+  cache_provider = "dragonfly" # Changed from redis
   datacenter     = var.datacenter
+
+  resource_profile = "medium"
 }
 ```
 

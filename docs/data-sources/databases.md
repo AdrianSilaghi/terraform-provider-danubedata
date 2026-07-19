@@ -38,8 +38,8 @@ output "production_connection" {
 data "danubedata_databases" "all" {}
 
 locals {
-  postgres_dbs = [for db in data.danubedata_databases.all.instances : db if db.engine == "PostgreSQL"]
-  mysql_dbs    = [for db in data.danubedata_databases.all.instances : db if db.engine == "MySQL"]
+  postgres_dbs = [for db in data.danubedata_databases.all.instances : db if db.engine == "postgresql"]
+  mysql_dbs    = [for db in data.danubedata_databases.all.instances : db if db.engine == "mysql"]
 }
 
 output "postgres_count" {
@@ -56,16 +56,17 @@ This data source has no arguments.
 * `instances` - List of database instances. Each instance contains:
   * `id` - Unique identifier for the database instance.
   * `name` - Name of the database instance.
-  * `status` - Current status (creating, running, stopped, error).
-  * `engine` - Database engine (MySQL, PostgreSQL, MariaDB).
+  * `status` - Current status (`pending`, `provisioning`, `starting`, `running`, `stopping`, `stopped`, `restoring`, `updating`, `error`, `destroying`).
+  * `engine` - Database engine (`mysql`, `postgresql`, `mariadb`).
   * `version` - Database version.
-  * `database_name` - Name of the database.
+  * `database_name` - Name of the initial database. Null if none was created.
   * `datacenter` - Datacenter location.
-  * `cpu_cores` - Number of CPU cores.
-  * `memory_size_mb` - Memory size in MB.
+  * `resource_profile` - Resource profile slug selecting CPU, memory and included storage (`micro`, `small`, `medium`, `large`).
+  * `cpu_cores` - Number of CPU cores. Derived from `resource_profile`.
+  * `memory_size_mb` - Memory size in MB. Derived from `resource_profile`.
   * `storage_size_gb` - Storage size in GB.
-  * `endpoint` - Connection endpoint hostname.
-  * `port` - Connection port.
-  * `username` - Database admin username.
+  * `endpoint` - Connection endpoint hostname. Null if not yet assigned.
+  * `port` - Connection port. Null if not yet assigned.
+  * `username` - Database admin username. Null if not yet assigned.
   * `monthly_cost` - Estimated monthly cost.
   * `created_at` - Timestamp when the instance was created.

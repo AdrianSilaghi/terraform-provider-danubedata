@@ -41,8 +41,8 @@ This data source has no arguments.
 ## Attribute Reference
 
 * `keys` - List of SSH keys. Each key contains:
-  * `id` - The SSH key ID.
+  * `id` - The SSH key ID. A numeric ID, exposed as a string; pass it straight to the `danubedata_vps` resource's `ssh_key_id` argument.
   * `name` - Name of the key.
-  * `fingerprint` - SSH key fingerprint.
+  * `fingerprint` - SHA256 fingerprint of the SSH key.
   * `public_key` - The public key content.
   * `created_at` - Creation timestamp.

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-19
+
+Documentation and packaging release; no functional provider changes. 0.3.1 fixed the database resource after a customer report; this completes the same sweep across every other resource, data source and guide.
+
+### Fixed
+
+- **Three more examples were not applyable.** `cache` and `cache-redis` set the read-only `cpu_cores`/`memory_size_mb` (and `cache-redis` omitted the now-required `resource_profile`); `vps-firewall` still used `rules { }` blocks after `rules` became a list attribute, plus the read-only VPS `cpu_cores`/`memory_size_gb`/`storage_size_gb`. All 11 examples now pass `terraform validate`; previously 3 failed with 12 errors between them.
+- **`cache-redis` pinned Redis 7.2, which is not an offered version** (8.4, 8.0 and 7.4 are). This class of error is invisible to `terraform validate` because it is enforced server-side. Every version, image id, profile slug and datacenter literal across all examples was audited against the platform config; the rest were correct.
+- **`docs/index.md` — the provider's Terraform Registry landing page — showed pre-0.3.0 HCL throughout**, including read-only VPS/cache/database attributes and `rules { }` firewall blocks. Same for `README.md` and the guides.
+- Every resource and data source page realigned with the schema: read-only attributes no longer presented as settable, required arguments no longer marked optional, removed attributes deleted, timeout defaults corrected against the code, and import examples corrected to the right ID type (UUID vs integer).
+- Registry protocol metadata: `terraform-registry-manifest.json` is now published as a release asset. Without it the registry advertises protocol 5.0 for every published version, while `providerserver.Serve` (terraform-plugin-framework v1.17) actually speaks 6.0.
+
+### Added
+
+- Documentation for the six previously undocumented resources: `parameter_group`, `database_replica`, `cache_snapshot`, `database_snapshot`, `static_site`, `static_site_domain`.
+- Documentation for the four previously undocumented data sources: `parameter_groups`, `cache_snapshots`, `database_snapshots`, `static_sites`.
+- Cache and database pages now carry a plan-slug table mapping each slug to its dashboard display name (`micro`=DD Puiu, `small`=DD Uzlina, `medium`=DD Matita, `large`=DD Sinoe). Confusing the slug with the display name is what prompted the original report.
+
+### Known upstream issues
+
+- Firewall rule `order` and `name` are still not honoured by the API, and this is now documented on the firewall page and in the example. `FirewallManagementController::store()` reads `$ruleData['priority']` while the request validates neither `order` nor `priority`, so rules are always auto-numbered in submission sequence; `FirewallResource` serializes a non-existent `priority` column and never returns `order`, and reads rule `name` from a column that does not exist. Setting either attribute surfaces "inconsistent result after apply". A platform-side fix is tracked separately.
+
+### Verification
+
+All 113 HCL blocks across the documentation were extracted and validated against the provider schema (111 complete configurations valid; 2 are intentional `# ... existing config ...` fragments). Every documented attribute was cross-checked against `terraform providers schema -json` — no page documents an attribute the provider does not have.
+
 ## [0.3.1] - 2026-07-19
 
 ### Fixed
@@ -159,7 +185,8 @@ Unit-test fixtures were rewritten to encode the current API contract, so this cl
 - Example configurations for common use cases
 - Complete infrastructure example
 
-[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.1.0...v0.2.0

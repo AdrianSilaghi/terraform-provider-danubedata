@@ -15,8 +15,6 @@ resource "danubedata_cache" "redis" {
   name             = "terraform-redis"
   cache_provider   = "redis"
   resource_profile = "small"
-  memory_size_mb   = 512
-  cpu_cores        = 1
   datacenter       = "fsn1"
 
   timeouts {
@@ -30,8 +28,6 @@ resource "danubedata_cache" "valkey" {
   name             = "terraform-valkey"
   cache_provider   = "valkey"
   resource_profile = "micro"
-  memory_size_mb   = 256
-  cpu_cores        = 1
   datacenter       = "fsn1"
 
   timeouts {

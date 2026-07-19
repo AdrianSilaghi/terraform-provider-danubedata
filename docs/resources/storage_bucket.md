@@ -47,6 +47,7 @@ resource "danubedata_storage_bucket" "data" {
   versioning_enabled = true
   public_access      = false
   encryption_enabled = true
+  encryption_type    = "sse-s3"
 }
 ```
 
@@ -54,47 +55,60 @@ resource "danubedata_storage_bucket" "data" {
 
 ### Required
 
-* `name` - (Required) Name of the bucket. Must be unique and follow S3 naming conventions.
-* `region` - (Required) Region for the bucket (e.g., `fsn1`).
+* `name` - Name of the bucket. Must follow S3 bucket naming rules: 3-63
+  characters, lowercase alphanumeric and hyphens, starting and ending with an
+  alphanumeric character. Changing this forces a new resource.
+* `region` - Region for the bucket. Currently `fsn1` is the only accepted
+  value. Changing this forces a new resource.
 
 ### Optional
 
-* `display_name` - (Optional) Human-readable display name.
-* `versioning_enabled` - (Optional) Enable object versioning. Default: `false`.
-* `public_access` - (Optional) Allow public access. Default: `false`.
-* `encryption_enabled` - (Optional) Enable server-side encryption. Default: `false`.
-* `encryption_type` - (Optional) Encryption type when encryption is enabled.
+* `display_name` - Human-readable display name, max 255 characters.
+* `versioning_enabled` - Enable object versioning. Defaults to `false`.
+* `public_access` - Allow public read access. Defaults to `false`.
+* `encryption_enabled` - Enable server-side encryption. Defaults to `true`.
+* `encryption_type` - Encryption type. One of `none`, `sse-s3`, `sse-kms`.
+  Defaults to `sse-s3`.
 
 ### Timeouts
 
-* `create` - (Default `5m`) Time to wait for bucket creation.
-* `update` - (Default `5m`) Time to wait for bucket updates.
-* `delete` - (Default `5m`) Time to wait for bucket deletion.
+* `create` - (Default `10m`) Time to wait for bucket creation.
+* `update` - (Default `10m`) Time to wait for bucket updates.
+* `delete` - (Default `10m`) Time to wait for bucket deletion.
 
 ## Attribute Reference
 
-In addition to all arguments above, the following attributes are exported:
+In addition to the arguments above, the following are exported:
 
 * `id` - The bucket ID.
-* `status` - Current status.
-* `endpoint_url` - S3-compatible endpoint URL.
-* `public_url` - Public URL (if public access enabled).
-* `minio_bucket_name` - Internal bucket name.
-* `size_bytes` - Current size in bytes.
-* `object_count` - Number of objects.
-* `monthly_cost` - Estimated monthly cost.
-* `created_at` - Creation timestamp.
+* `status` - Current status (`pending`, `active`, `error`, `destroying`).
+* `endpoint_url` - S3 endpoint URL for accessing the bucket.
+* `minio_bucket_name` - Internal bucket name, including the team prefix. This
+  is the name to pass to S3 clients.
+* `size_bytes` - Current size of the bucket in bytes.
+* `object_count` - Number of objects in the bucket.
+* `monthly_cost` - Estimated monthly cost in euros.
+* `monthly_cost_cents` - Estimated monthly cost in cents.
+* `created_at` / `updated_at` - Timestamps.
 
 ## Import
 
 Storage buckets can be imported using their ID:
 
 ```bash
-terraform import danubedata_storage_bucket.example bucket-abc123
+terraform import danubedata_storage_bucket.example 2d9a7f31-6c08-4b5e-8a13-9f4e2c7d0b56
 ```
 
-## Pricing
+## Notes
 
-- Base: EUR 3.99/month
-- Includes: 1TB storage + 1TB egress traffic
-- Overage: EUR 0.01/GB for storage, EUR 0.01/GB for egress
+- `encryption_enabled` defaults to `true`. Set it explicitly to `false` if you
+  want an unencrypted bucket.
+- Changing `name` or `region` replaces the bucket. `display_name`,
+  `versioning_enabled`, `public_access`, `encryption_enabled` and
+  `encryption_type` are updated in place.
+- Use `minio_bucket_name` — not `name` — when addressing the bucket from an S3
+  client, since the platform prefixes bucket names per team.
+- For current pricing, including storage and egress allowances, see
+  <https://danubedata.ro/pricing>.
+- The provider acts on the API token owner's current team. If you belong to
+  multiple teams, confirm the active team before your first apply.

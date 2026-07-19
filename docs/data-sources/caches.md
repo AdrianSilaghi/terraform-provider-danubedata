@@ -38,8 +38,8 @@ output "redis_url" {
 data "danubedata_caches" "all" {}
 
 locals {
-  redis_caches     = [for c in data.danubedata_caches.all.instances : c if c.cache_provider == "Redis"]
-  dragonfly_caches = [for c in data.danubedata_caches.all.instances : c if c.cache_provider == "Dragonfly"]
+  redis_caches     = [for c in data.danubedata_caches.all.instances : c if c.cache_provider == "redis"]
+  dragonfly_caches = [for c in data.danubedata_caches.all.instances : c if c.cache_provider == "dragonfly"]
 }
 
 output "redis_count" {
@@ -56,13 +56,13 @@ This data source has no arguments.
 * `instances` - List of cache instances. Each instance contains:
   * `id` - Unique identifier for the cache instance.
   * `name` - Name of the cache instance.
-  * `status` - Current status (creating, running, stopped, error).
-  * `cache_provider` - Cache provider (Redis, Valkey, Dragonfly).
+  * `status` - Current status (`pending`, `provisioning`, `running`, `stopped`, `restoring`, `updating`, `error`, `destroying`).
+  * `cache_provider` - Cache provider (`redis`, `valkey`, `dragonfly`).
   * `version` - Cache version.
-  * `datacenter` - Datacenter location.
-  * `cpu_cores` - Number of CPU cores.
-  * `memory_size_mb` - Memory size in MB.
-  * `endpoint` - Connection endpoint hostname.
-  * `port` - Connection port.
+  * `resource_profile` - Resource profile slug selecting CPU and memory (`micro`, `small`, `medium`, `large`).
+  * `cpu_cores` - Number of CPU cores. Derived from `resource_profile`.
+  * `memory_size_mb` - Memory size in MB. Derived from `resource_profile`.
+  * `endpoint` - Connection endpoint hostname. Null if not yet assigned.
+  * `port` - Connection port. Null if not yet assigned.
   * `monthly_cost` - Estimated monthly cost.
   * `created_at` - Timestamp when the instance was created.
