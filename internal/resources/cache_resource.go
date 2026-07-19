@@ -379,7 +379,9 @@ func (r *CacheResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		r.fetchCacheConnectionInfo(ctx, cache.ID, &data)
 	}
 
-	if !data.DnsEnabled.Equal(state.DnsEnabled) {
+	dnsChanged := !data.DnsEnabled.Equal(state.DnsEnabled)
+
+	if dnsChanged {
 		if data.DnsEnabled.ValueBool() {
 			if err := r.client.EnableCacheDns(ctx, data.ID.ValueString()); err != nil {
 				resp.Diagnostics.AddError("Failed to enable cache DNS", err.Error())
@@ -391,6 +393,22 @@ func (r *CacheResource) Update(ctx context.Context, req resource.UpdateRequest, 
 				return
 			}
 		}
+	}
+
+	// Any path that did not go through UpdateCache still holds the plan's
+	// unknown values for every computed attribute, because only `id` carries
+	// UseStateForUnknown. Refresh from the API before writing state, or
+	// Terraform rejects the apply. This covers a DNS-only change and any other
+	// update the hasChanges set does not recognise.
+	if !hasChanges {
+		cache, err := r.client.GetCache(ctx, data.ID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to read cache instance after update", err.Error())
+			return
+		}
+
+		r.mapCacheToState(cache, &data)
+		r.fetchCacheConnectionInfo(ctx, cache.ID, &data)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

@@ -101,6 +101,36 @@ func TestAccCacheResource_update(t *testing.T) {
 	})
 }
 
+func TestAccCacheResource_dnsOnlyUpdate(t *testing.T) {
+	name := acctest.RandomName("tf-cachedns")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCacheResourceConfig_dnsEnabled(name, false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("danubedata_cache.test", "name", name),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "status"),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "endpoint"),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "port"),
+				),
+			},
+			// DNS-only change: nothing else in config differs from the step above.
+			{
+				Config: testAccCacheResourceConfig_dnsEnabled(name, true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("danubedata_cache.test", "dns_enabled", "true"),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "status"),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "endpoint"),
+					resource.TestCheckResourceAttrSet("danubedata_cache.test", "port"),
+				),
+			},
+		},
+	})
+}
+
 func testAccCacheResourceConfig_basic(name string) string {
 	return acctest.ConfigCompose(
 		acctest.ProviderConfig(),
@@ -176,5 +206,30 @@ resource "danubedata_cache" "test" {
   }
 }
 `, name, resourceProfile),
+	)
+}
+
+func testAccCacheResourceConfig_dnsEnabled(name string, dnsEnabled bool) string {
+	dnsLine := ""
+	if dnsEnabled {
+		dnsLine = "  dns_enabled      = true\n"
+	}
+
+	return acctest.ConfigCompose(
+		acctest.ProviderConfig(),
+		fmt.Sprintf(`
+resource "danubedata_cache" "test" {
+  name             = %q
+  cache_provider   = "redis"
+  resource_profile = "micro"
+  datacenter       = "fsn1"
+%s
+  timeouts {
+    create = "10m"
+    update = "10m"
+    delete = "10m"
+  }
+}
+`, name, dnsLine),
 	)
 }

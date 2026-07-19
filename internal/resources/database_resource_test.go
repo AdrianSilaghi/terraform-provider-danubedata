@@ -132,6 +132,36 @@ func TestAccDatabaseResource_update(t *testing.T) {
 	})
 }
 
+func TestAccDatabaseResource_dnsOnlyUpdate(t *testing.T) {
+	name := acctest.RandomName("tf-dnsupd")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccDatabaseResourceConfig_dnsEnabled(name, false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("danubedata_database.test", "name", name),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "status"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "username"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "endpoint"),
+				),
+			},
+			// DNS-only change: nothing else in config differs from the step above.
+			{
+				Config: testAccDatabaseResourceConfig_dnsEnabled(name, true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("danubedata_database.test", "dns_enabled", "true"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "status"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "username"),
+					resource.TestCheckResourceAttrSet("danubedata_database.test", "endpoint"),
+				),
+			},
+		},
+	})
+}
+
 func testAccDatabaseResourceConfig_basic(name string) string {
 	return acctest.ConfigCompose(
 		acctest.ProviderConfig(),
@@ -230,5 +260,31 @@ resource "danubedata_database" "test" {
   }
 }
 `, name, resourceProfile),
+	)
+}
+
+func testAccDatabaseResourceConfig_dnsEnabled(name string, dnsEnabled bool) string {
+	dnsLine := ""
+	if dnsEnabled {
+		dnsLine = "  dns_enabled      = true\n"
+	}
+
+	return acctest.ConfigCompose(
+		acctest.ProviderConfig(),
+		fmt.Sprintf(`
+resource "danubedata_database" "test" {
+  name             = %q
+  engine           = "postgresql"
+  version          = "18"
+  resource_profile = "micro"
+  datacenter       = "fsn1"
+%s
+  timeouts {
+    create = "15m"
+    update = "15m"
+    delete = "10m"
+  }
+}
+`, name, dnsLine),
 	)
 }

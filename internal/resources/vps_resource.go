@@ -436,6 +436,22 @@ func (r *VpsResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		r.fetchVpsPassword(ctx, vps.ID, &data)
 	}
 
+	// Any path that did not go through UpdateVps still holds the plan's unknown
+	// values for every computed attribute, because only `id` carries
+	// UseStateForUnknown. Refresh from the API before writing state, or Terraform
+	// rejects the apply. This covers a timeouts-only change and any other update
+	// the hasChanges set does not recognise.
+	if !hasChanges {
+		vps, err := r.client.GetVps(ctx, data.ID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to read VPS instance after update", err.Error())
+			return
+		}
+
+		r.mapVpsToState(vps, &data)
+		r.fetchVpsPassword(ctx, vps.ID, &data)
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
