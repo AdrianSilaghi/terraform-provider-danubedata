@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-19
+
 ### Fixed
 
 - **`danubedata_database` examples were not applyable.** The 0.3.0 schema realignment made `cpu_cores`/`memory_size_mb` read-only and `resource_profile` required, but only `examples/complete` was updated to match. `examples/database` failed with "Invalid Configuration for Read-Only Attribute" and `examples/database-mysql` additionally failed with "Missing required argument". Both now validate.
@@ -157,7 +159,8 @@ Unit-test fixtures were rewritten to encode the current API contract, so this cl
 - Example configurations for common use cases
 - Complete infrastructure example
 
-[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/releases/tag/v0.1.0
