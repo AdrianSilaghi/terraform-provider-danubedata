@@ -49,12 +49,6 @@ signs:
 release:
   draft: false
   prerelease: auto
-  # The Terraform Registry reads the protocol version from this manifest. Without
-  # it the registry defaults to advertising protocol 5.0, while the binary served
-  # by terraform-plugin-framework speaks 6.0.
-  extra_files:
-    - glob: 'terraform-registry-manifest.json'
-      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
 
 changelog:
   sort: asc

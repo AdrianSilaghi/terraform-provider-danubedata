@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-19
+
+### Fixed
+
+- **The Terraform Registry stopped ingesting new versions at 0.3.2.** 0.3.2 and 0.3.3 published to GitHub correctly but never appeared in the registry, leaving `terraform init` pinned to 0.3.1 and unable to fetch either fix. Everything verifiable from outside was correct — the release webhook was delivered and accepted (HTTP 200), `SHA256SUMS` was well-formed, its signature verified against the registry's registered GPG key, and the release was neither draft nor prerelease. The one variable introduced in 0.3.2 was publishing `terraform-registry-manifest.json` as a release asset, so this release drops it to isolate the cause. If the registry ingests 0.3.4, the manifest was responsible and will be reinstated only once the real incompatibility is understood; if not, the fault is registry-side and the manifest is exonerated.
+
+Contains no provider code changes. Identical to 0.3.3 apart from release packaging.
+
 ## [0.3.3] - 2026-07-19
 
 ### Fixed
@@ -192,7 +200,8 @@ Unit-test fixtures were rewritten to encode the current API contract, so this cl
 - Example configurations for common use cases
 - Complete infrastructure example
 
-[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.0...v0.3.1
