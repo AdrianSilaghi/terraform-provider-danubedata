@@ -120,8 +120,10 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 				},
 			},
 			"resource_profile": schema.StringAttribute{
-				Description: "Resource profile for the database (small, medium, large).",
-				Required:    true,
+				Description: "Plan slug selecting CPU, memory and included storage: " +
+					"micro (DD Puiu), small (DD Uzlina), medium (DD Matita), large (DD Sinoe). " +
+					"Use the slug, not the display name.",
+				Required: true,
 			},
 			"storage_size_gb": schema.Int64Attribute{
 				Description: "Storage size in GB. Defaults to the resource_profile's minimum; may only be increased afterwards (the API rejects shrinking).",
@@ -188,7 +190,7 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 				Computed:    true,
 			},
 			"monthly_cost": schema.Float64Attribute{
-				Description: "Monthly cost in dollars.",
+				Description: "Monthly cost in euros.",
 				Computed:    true,
 			},
 			"deployed_at": schema.StringAttribute{

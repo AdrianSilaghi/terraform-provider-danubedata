@@ -5,7 +5,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.1"
+      version = "~> 0.3"
     }
   }
 }
@@ -14,14 +14,13 @@ provider "danubedata" {}
 
 # Create a MySQL database instance
 resource "danubedata_database" "main" {
-  name            = "app-database"
-  database_name   = "myapp"
-  engine          = "mysql"
-  version         = "8.0"
-  storage_size_gb = 20
-  memory_size_mb  = 2048
-  cpu_cores       = 2
-  datacenter      = "fsn1"
+  name             = "app-database"
+  database_name    = "myapp"
+  engine           = "mysql"
+  version          = "8.0"
+  resource_profile = "small"
+  storage_size_gb  = 20
+  datacenter       = "fsn1"
 
   timeouts {
     create = "15m"
