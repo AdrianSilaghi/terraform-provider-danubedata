@@ -36,7 +36,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.1"
+      version = "~> 0.3"
     }
   }
 }
@@ -57,9 +57,8 @@ resource "danubedata_vps" "web" {
   auth_method = "ssh_key"
   ssh_key_id  = danubedata_ssh_key.main.id
 
-  cpu_cores       = 2
-  memory_size_gb  = 4
-  storage_size_gb = 50
+  # The plan sets CPU, memory and storage
+  resource_profile = "small_shared"
 }
 
 # Output useful information
@@ -73,6 +72,11 @@ output "ssh_command" {
   description = "SSH command to connect to the server"
 }
 ```
+
+`resource_profile` is where you choose the size — CPU, memory and storage all
+follow from the plan and are read-only attributes. `small_shared` is a modest
+shared-CPU plan; see the [danubedata_vps](../resources/vps.md) page for the full
+list of profiles and <https://danubedata.ro/pricing> for what each one costs.
 
 ## Step 3: Initialize Terraform
 
@@ -128,7 +132,6 @@ Now that you've created your first resource, explore more capabilities:
 
 - **[Web Application Stack](web-application-stack.md)** - Deploy a complete web app with database and cache
 - **[CI/CD Integration](ci-cd-integration.md)** - Automate deployments with GitHub Actions
-- **[Multi-Environment Setup](multi-environment.md)** - Manage dev, staging, and production
 
 ## Troubleshooting
 

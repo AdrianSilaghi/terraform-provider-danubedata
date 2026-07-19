@@ -325,29 +325,37 @@ Store state remotely for team collaboration:
 ```hcl
 terraform {
   backend "s3" {
-    bucket   = "terraform-state"
-    key      = "danubedata/terraform.tfstate"
-    region   = "us-east-1"
-    endpoint = "https://s3.danubedata.ro"
+    bucket = "terraform-state"
+    key    = "danubedata/terraform.tfstate"
+    region = "us-east-1" # ignored by DanubeData, but the backend requires it
+
+    endpoints = {
+      s3 = "https://s3.danubedata.ro"
+    }
 
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_requesting_account_id  = true
-    force_path_style            = true
+    use_path_style              = true
   }
 }
 ```
 
+Supply the bucket's access key to the backend as `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` alongside `DANUBEDATA_API_TOKEN`.
+
 ### 2. Lock State
 
-Enable state locking to prevent concurrent modifications:
+Enable state locking to prevent concurrent modifications. Use `use_lockfile`,
+which locks via an object in the same bucket — DanubeData's S3 API is
+object storage only, so the older `dynamodb_table` option does not apply:
 
 ```hcl
 terraform {
   backend "s3" {
     # ... other config ...
 
-    dynamodb_table = "terraform-locks"  # If using DynamoDB for locking
+    use_lockfile = true
   }
 }
 ```

@@ -34,17 +34,17 @@ output "web_firewall_rules" {
 }
 ```
 
-### Find Default Firewall
+### Filter Active Firewalls
 
 ```hcl
 data "danubedata_firewalls" "all" {}
 
 locals {
-  default_firewall = [for fw in data.danubedata_firewalls.all.firewalls : fw if fw.is_default][0]
+  active_firewalls = [for fw in data.danubedata_firewalls.all.firewalls : fw if fw.status == "active"]
 }
 
-output "default_firewall_id" {
-  value = local.default_firewall.id
+output "active_firewall_ids" {
+  value = [for fw in local.active_firewalls : fw.id]
 }
 ```
 
@@ -58,8 +58,9 @@ This data source has no arguments.
   * `id` - Unique identifier for the firewall.
   * `name` - Name of the firewall.
   * `description` - Description of the firewall.
-  * `status` - Current status.
-  * `default_action` - Default action for unmatched traffic (allow or deny).
-  * `is_default` - Whether this is the default firewall.
+  * `status` - Current status (`draft`, `active`, `applying`, `error`).
   * `rules_count` - Number of rules in the firewall.
   * `created_at` - Timestamp when the firewall was created.
+
+This data source does not return the individual rules. Use the `danubedata_firewall`
+resource's `rules` block to manage them.

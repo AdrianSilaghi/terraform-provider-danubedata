@@ -36,7 +36,8 @@ output "pre_upgrade_snapshot_id" {
 data "danubedata_vps_snapshots" "all" {}
 
 variable "vps_id" {
-  default = "vps-abc123"
+  description = "UUID of the VPS instance, e.g. from danubedata_vps.server.id"
+  type        = string
 }
 
 locals {
@@ -69,10 +70,10 @@ This data source has no arguments.
 ## Attribute Reference
 
 * `snapshots` - List of VPS snapshots. Each snapshot contains:
-  * `id` - Unique identifier for the snapshot.
+  * `id` - Unique identifier for the snapshot. A numeric ID, exposed as a string.
   * `name` - Name of the snapshot.
   * `description` - Description of the snapshot.
-  * `status` - Current status (creating, ready, error).
-  * `vps_instance_id` - ID of the VPS instance this snapshot belongs to.
-  * `size_gb` - Size of the snapshot in GB.
+  * `status` - Current status (`pending`, `creating`, `ready`, `failed`, `restoring`, `deleting`).
+  * `vps_instance_id` - UUID of the VPS instance this snapshot belongs to.
+  * `size_gb` - Size of the snapshot in GB. May be fractional.
   * `created_at` - Timestamp when the snapshot was created.

@@ -8,7 +8,7 @@ Lists available VPS operating system images.
 data "danubedata_vps_images" "all" {}
 
 output "available_images" {
-  value = [for img in data.danubedata_vps_images.all.images : img.image]
+  value = [for img in data.danubedata_vps_images.all.images : img.id]
 }
 ```
 
@@ -22,7 +22,7 @@ locals {
 }
 
 output "ubuntu_images" {
-  value = [for img in local.ubuntu_images : img.image]
+  value = [for img in local.ubuntu_images : img.id]
 }
 ```
 
@@ -38,12 +38,16 @@ locals {
 
 resource "danubedata_vps" "server" {
   name        = "web-server"
-  image       = local.latest_ubuntu.image
+  image       = local.latest_ubuntu.id
   datacenter  = "fsn1"
   auth_method = "ssh_key"
   ssh_key_id  = danubedata_ssh_key.main.id
 }
 ```
+
+Prefer `id` over `image` for the VPS `image` argument. Both are accepted, but
+`image` is a fully-pinned registry reference that changes whenever the image is
+rebuilt, which produces a spurious diff on the next plan.
 
 ## Argument Reference
 
@@ -52,11 +56,11 @@ This data source has no arguments.
 ## Attribute Reference
 
 * `images` - List of available images. Each image contains:
-  * `id` - The image ID.
-  * `image` - Image identifier used when creating VPS.
+  * `id` - Short image identifier, e.g. `ubuntu-24.04`. This is the stable value to pass to the `danubedata_vps` resource's `image` argument.
+  * `image` - Full image reference, e.g. a pinned container registry path. Also accepted by `danubedata_vps`, but it changes on every image rebuild.
   * `label` - Human-readable label.
   * `description` - Image description.
-  * `distro` - Distribution name (e.g., `ubuntu`, `debian`, `almalinux`).
+  * `distro` - Distribution name (`ubuntu`, `debian`, `alma`, `rocky`, `fedora`, `alpine`).
   * `version` - Distribution version.
-  * `family` - Image family (if applicable).
+  * `family` - OS family (`debian`, `redhat`, `fedora`, `alpine`). Null if the image does not declare one.
   * `default_user` - Default SSH user for this image.

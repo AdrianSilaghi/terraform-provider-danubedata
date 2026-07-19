@@ -42,8 +42,8 @@ output "api_status" {
 data "danubedata_serverless_containers" "all" {}
 
 locals {
-  docker_containers = [for c in data.danubedata_serverless_containers.all.containers : c if c.deployment_type == "docker"]
-  git_containers    = [for c in data.danubedata_serverless_containers.all.containers : c if c.deployment_type == "git"]
+  docker_containers = [for c in data.danubedata_serverless_containers.all.containers : c if c.deployment_type == "docker_image"]
+  git_containers    = [for c in data.danubedata_serverless_containers.all.containers : c if c.deployment_type == "git_repository"]
 }
 
 output "docker_count" {
@@ -60,13 +60,13 @@ This data source has no arguments.
 * `containers` - List of serverless containers. Each container contains:
   * `id` - Unique identifier for the container.
   * `name` - Name of the container.
-  * `status` - Current status (creating, building, running, error).
-  * `deployment_type` - Deployment type (docker or git).
-  * `image_url` - Docker image URL (for docker deployment).
-  * `git_repository` - Git repository URL (for git deployment).
-  * `git_branch` - Git branch (for git deployment).
+  * `status` - Current status (`pending`, `building`, `deploying`, `running`, `stopped`, `starting`, `stopping`, `provisioning`, `error`, `degraded`).
+  * `deployment_type` - Deployment type (`docker_image`, `git_repository`, `zip_upload`).
+  * `image` - Container image reference. Null unless `deployment_type` is `docker_image`.
+  * `repository_url` - Git repository URL. Null unless `deployment_type` is `git_repository`.
+  * `repository_branch` - Git branch, for `git_repository` deployments.
   * `url` - Public HTTPS URL for the container.
   * `port` - Container port.
-  * `min_instances` - Minimum number of instances (0 = scale to zero).
-  * `max_instances` - Maximum number of instances.
+  * `min_scale` - Minimum number of instances (0 = scale to zero).
+  * `max_scale` - Maximum number of instances.
   * `created_at` - Timestamp when the container was created.

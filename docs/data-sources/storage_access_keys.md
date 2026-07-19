@@ -59,10 +59,11 @@ This data source has no arguments.
   * `id` - Unique identifier for the access key.
   * `name` - Name of the access key.
   * `access_key_id` - The S3 access key ID for authentication.
-  * `status` - Current status (active, revoked).
-  * `access_type` - Access type (full or restricted).
-  * `expires_at` - Expiration timestamp (if set).
-  * `last_used_at` - Timestamp when the key was last used.
+  * `status` - Current status (`active`, `revoked`, `error`).
+  * `access_type` - `restricted` if the key carries per-bucket permissions, otherwise `full`.
+  * `is_prefix_scoped` - Whether the key is scoped to specific bucket prefixes.
+  * `expires_at` - Expiration timestamp. Null if the key does not expire.
+  * `last_used_at` - Timestamp when the key was last used. Null if never used.
   * `is_expired` - Whether the key has expired.
   * `created_at` - Timestamp when the key was created.
 

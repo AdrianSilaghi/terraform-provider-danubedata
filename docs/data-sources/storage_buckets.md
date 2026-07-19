@@ -57,11 +57,11 @@ This data source has no arguments.
 * `buckets` - List of storage buckets. Each bucket contains:
   * `id` - Unique identifier for the bucket.
   * `name` - Name of the bucket.
-  * `display_name` - Human-readable display name.
-  * `status` - Current status.
+  * `display_name` - Human-readable display name. Null if not set.
+  * `status` - Current status (`pending`, `creating`, `active`, `updating`, `error`, `destroying`).
   * `region` - Region where the bucket is located.
   * `endpoint_url` - S3-compatible endpoint URL.
-  * `public_url` - Public URL (if public access enabled).
+  * `public_url` - Public URL. Null unless public access is enabled.
   * `minio_bucket_name` - Internal bucket name for S3 operations.
   * `public_access` - Whether public access is enabled.
   * `versioning_enabled` - Whether versioning is enabled.
