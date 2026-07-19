@@ -5,7 +5,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.1"
+      version = "~> 0.3"
     }
   }
 }
@@ -14,12 +14,11 @@ provider "danubedata" {}
 
 # Create a Redis cache instance
 resource "danubedata_cache" "main" {
-  name           = "app-cache"
-  cache_provider = "redis"
-  memory_size_mb = 512
-  cpu_cores      = 1
-  datacenter     = "fsn1"
-  version        = "7.2"
+  name             = "app-cache"
+  cache_provider   = "redis"
+  resource_profile = "small"
+  datacenter       = "fsn1"
+  version          = "7.4"
 
   timeouts {
     create = "10m"
