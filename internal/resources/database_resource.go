@@ -463,7 +463,7 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 	if !hasChanges {
 		database, err := r.client.GetDatabase(ctx, data.ID.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddError("Failed to read database instance after DNS change", err.Error())
+			resp.Diagnostics.AddError("Failed to read database instance after update", err.Error())
 			return
 		}
 

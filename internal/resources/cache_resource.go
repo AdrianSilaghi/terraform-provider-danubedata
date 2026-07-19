@@ -403,7 +403,7 @@ func (r *CacheResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if !hasChanges {
 		cache, err := r.client.GetCache(ctx, data.ID.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddError("Failed to read cache instance after DNS change", err.Error())
+			resp.Diagnostics.AddError("Failed to read cache instance after update", err.Error())
 			return
 		}
 
