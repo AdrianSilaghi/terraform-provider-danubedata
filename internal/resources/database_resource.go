@@ -439,7 +439,9 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 		r.fetchDatabaseCredentials(ctx, database.ID, &data)
 	}
 
-	if !data.DnsEnabled.Equal(state.DnsEnabled) {
+	dnsChanged := !data.DnsEnabled.Equal(state.DnsEnabled)
+
+	if dnsChanged {
 		if data.DnsEnabled.ValueBool() {
 			if err := r.client.EnableDatabaseDns(ctx, data.ID.ValueString()); err != nil {
 				resp.Diagnostics.AddError("Failed to enable database DNS", err.Error())
@@ -451,6 +453,20 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 				return
 			}
 		}
+	}
+
+	// A DNS-only change never went through UpdateDatabase, so every computed
+	// attribute is still the plan's unknown value. Refresh from the API before
+	// writing state, or Terraform rejects the apply.
+	if dnsChanged && !hasChanges {
+		database, err := r.client.GetDatabase(ctx, data.ID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to read database instance after DNS change", err.Error())
+			return
+		}
+
+		r.mapDatabaseToState(database, &data)
+		r.fetchDatabaseCredentials(ctx, database.ID, &data)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
