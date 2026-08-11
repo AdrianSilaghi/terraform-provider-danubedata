@@ -1,0 +1,314 @@
+void publishGitHubCommitStatusForSha(String targetSha, String statusContext, String state, String description) {
+    if (!(targetSha ==~ /[0-9a-fA-F]{40}/)) {
+        error("Cannot publish GitHub status for invalid SHA: ${targetSha ?: 'unset'}")
+    }
+    if (!(statusContext in ['ci/jenkins/pr', 'ci/jenkins/pr-head', 'ci/jenkins/main'])) {
+        error("Cannot publish unexpected GitHub status context: ${statusContext ?: 'unset'}")
+    }
+    if (!(state in ['PENDING', 'SUCCESS', 'FAILURE', 'ERROR'])) {
+        error("Cannot publish unexpected GitHub status state: ${state ?: 'unset'}")
+    }
+    if (!(description == 'Jenkins build is running' ||
+        description == 'Jenkins status publication failed' ||
+        description ==~ /Jenkins build (success|failure|aborted|unstable|not_built)/)) {
+        error("Cannot publish unexpected GitHub status description: ${description ?: 'unset'}")
+    }
+
+    String statusTargetUrl = env.BUILD_URL?.trim()
+    if (!statusTargetUrl?.startsWith('https://jenkins.ifasconsult.ro/job/terraform-provider-danubedata-') ||
+        statusTargetUrl.contains('\n') || statusTargetUrl.contains('\r')) {
+        error("Cannot publish unexpected GitHub status target URL: ${statusTargetUrl ?: 'unset'}")
+    }
+
+    withEnv([
+        "STATUS_TARGET_SHA=${targetSha.toLowerCase()}",
+        "STATUS_CONTEXT=${statusContext}",
+        "STATUS_STATE=${state.toLowerCase()}",
+        "STATUS_DESCRIPTION=${description}",
+        "STATUS_TARGET_URL=${statusTargetUrl}"
+    ]) {
+        withCredentials([string(
+            credentialsId: 'terraform-provider-danubedata-github-status-token',
+            variable: 'GITHUB_STATUS_TOKEN'
+        )]) {
+            // This credential scope contains only fixed, trusted Jenkinsfile
+            // code. No checked-out executable or workspace payload is used.
+            sh label: "Publish ${statusContext} status", script: '''#!/bin/bash
+                set +x
+                set -euo pipefail
+                /usr/bin/test -n "$GITHUB_STATUS_TOKEN"
+                exec 3<<<"header = \"Authorization: Bearer ${GITHUB_STATUS_TOKEN}\""
+                /usr/bin/jq -cn \
+                    --arg state "$STATUS_STATE" \
+                    --arg target_url "$STATUS_TARGET_URL" \
+                    --arg description "$STATUS_DESCRIPTION" \
+                    --arg context "$STATUS_CONTEXT" \
+                    '{state: $state, target_url: $target_url, description: $description, context: $context}' | \
+                    /usr/bin/curl --disable \
+                        --fail-with-body \
+                        --silent \
+                        --show-error \
+                        --request POST \
+                        --header 'Accept: application/vnd.github+json' \
+                        --header 'X-GitHub-Api-Version: 2022-11-28' \
+                        --header 'Content-Type: application/json' \
+                        --config /dev/fd/3 \
+                        --data-binary @- \
+                        "https://api.github.com/repos/AdrianSilaghi/terraform-provider-danubedata/statuses/${STATUS_TARGET_SHA}" \
+                        >/dev/null
+            '''
+        }
+    }
+}
+
+void publishGitHubCommitStatus(String state, String description) {
+    if (!(env.GITHUB_STATUS_CONTEXT in ['ci/jenkins/pr', 'ci/jenkins/main'])) {
+        error("Cannot publish unexpected GitHub status context: ${env.GITHUB_STATUS_CONTEXT ?: 'unset'}")
+    }
+    if (!(state in ['PENDING', 'SUCCESS', 'FAILURE', 'ERROR'])) {
+        error("Cannot publish unexpected GitHub status state: ${state}")
+    }
+
+    // GitHub's normal PR rollup follows the head commit. The verified merge
+    // commit remains the authoritative, base-aware result and is published last.
+    boolean mirrorHeadStatus = env.GITHUB_STATUS_HEAD_SHA?.trim() &&
+        !env.GITHUB_STATUS_HEAD_SHA.equalsIgnoreCase(env.GITHUB_STATUS_SHA)
+    if (mirrorHeadStatus) {
+        publishGitHubCommitStatusForSha(env.GITHUB_STATUS_HEAD_SHA, 'ci/jenkins/pr-head',
+            state,
+            description
+        )
+    }
+
+    String authoritativeState = state
+    String authoritativeDescription = description
+    if (state == 'SUCCESS' && currentBuild.currentResult != 'SUCCESS') {
+        authoritativeState = 'FAILURE'
+        authoritativeDescription = "Jenkins build ${currentBuild.currentResult.toLowerCase()}"
+    }
+    try {
+        publishGitHubCommitStatusForSha(env.GITHUB_STATUS_SHA, env.GITHUB_STATUS_CONTEXT,
+            authoritativeState,
+            authoritativeDescription
+        )
+    } catch (Exception publicationFailure) {
+        // A visible green head must never survive a failed authoritative write.
+        if (state == 'SUCCESS' && mirrorHeadStatus) {
+            try {
+                publishGitHubCommitStatusForSha(env.GITHUB_STATUS_HEAD_SHA, 'ci/jenkins/pr-head',
+                    'FAILURE', 'Jenkins status publication failed'
+                )
+            } catch (Exception ignoredCorrectionFailure) {
+                echo 'Failed to correct the PR-head status after authoritative publication failed'
+            }
+        }
+        throw publicationFailure
+    }
+}
+
+pipeline {
+    agent none
+
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        timeout(time: 30, unit: 'MINUTES')
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '30'))
+    }
+
+    parameters {
+        string(name: 'SOURCE_REF', defaultValue: '', description: 'Trusted webhook ref. PR accepts refs/pull/N/merge; main accepts refs/heads/main.')
+        string(name: 'SOURCE_SHA', defaultValue: '', description: 'Required PR head SHA or protected main tip SHA.')
+        string(name: 'CHANGE_ID', defaultValue: '', description: 'Pull request number; empty for protected main.')
+        string(name: 'CHANGE_TARGET', defaultValue: 'main', description: 'Pull request base branch.')
+        string(name: 'SOURCE_REPOSITORY', defaultValue: 'AdrianSilaghi/terraform-provider-danubedata', description: 'Canonical webhook repository full name.')
+        string(name: 'HEAD_REPOSITORY', defaultValue: '', description: 'PR head repository full name; empty for main.')
+        string(name: 'AUTHOR_ASSOCIATION', defaultValue: '', description: 'GitHub PR author association; empty for main.')
+    }
+
+    environment {
+        CANONICAL_REPOSITORY = 'AdrianSilaghi/terraform-provider-danubedata'
+        SOURCE_URL = 'https://github.com/AdrianSilaghi/terraform-provider-danubedata.git'
+        GO_IMAGE = 'golang:1.24.12-bookworm@sha256:44dd2dbf7b34b282ccd04e88cdf81dc93d38812ffd91c47cca8a11736860f55e'
+        GOLANGCI_LINT_IMAGE = 'golangci/golangci-lint:v1.64.5-alpine@sha256:e2a271bff83a5f6072a4332d285e6c638ba040b3e57daa3dfd2629235f61a0ad'
+    }
+
+    stages {
+        stage('Validate trusted build context') {
+            steps {
+                script {
+                    if (params.SOURCE_REPOSITORY.trim() != env.CANONICAL_REPOSITORY) {
+                        error("Unexpected source repository: ${params.SOURCE_REPOSITORY ?: 'unset'}")
+                    }
+
+                    String sourceSha = params.SOURCE_SHA.trim()
+                    if (!(sourceSha ==~ /[0-9a-fA-F]{40}/)) {
+                        error("Invalid SOURCE_SHA: ${sourceSha ?: 'unset'}")
+                    }
+
+                    if (env.JOB_NAME == 'terraform-provider-danubedata-pr/build') {
+                        String changeId = params.CHANGE_ID.trim()
+                        String sourceRef = params.SOURCE_REF.trim()
+                        if (!(changeId ==~ /[1-9][0-9]*/)) {
+                            error("Invalid CHANGE_ID: ${changeId ?: 'unset'}")
+                        }
+                        if (!sourceRef) {
+                            sourceRef = "refs/pull/${changeId}/merge"
+                        }
+                        if (params.CHANGE_TARGET.trim() != 'main') {
+                            error("Pull request target must be main, got ${params.CHANGE_TARGET ?: 'unset'}")
+                        }
+                        if (params.HEAD_REPOSITORY.trim() != env.CANONICAL_REPOSITORY) {
+                            error('Only same-repository pull requests may run on the host build agent')
+                        }
+                        if (!(params.AUTHOR_ASSOCIATION.trim() in ['OWNER', 'MEMBER', 'COLLABORATOR'])) {
+                            error("Pull request author is not a trusted collaborator: ${params.AUTHOR_ASSOCIATION ?: 'unset'}")
+                        }
+                        if (!(sourceRef ==~ /refs\/pull\/[1-9][0-9]*\/merge/)) {
+                            error("Invalid pull request source ref: ${sourceRef ?: 'unset'}")
+                        }
+                        String refChangeId = (sourceRef =~ /refs\/pull\/([1-9][0-9]*)\/merge/)[0][1]
+                        if (changeId != refChangeId) {
+                            error("CHANGE_ID ${changeId} does not match source ref ${sourceRef}")
+                        }
+
+                        env.BUILD_AGENT_LABEL = 'pr-build'
+                        env.IS_PULL_REQUEST = 'true'
+                        env.VERIFIED_REMOTE_REF = sourceRef.replace('refs/pull/', 'refs/remotes/origin/pull/')
+                        env.VERIFIED_BASE_REF = 'refs/remotes/origin/main'
+                        env.CHECKOUT_REF = env.VERIFIED_REMOTE_REF
+                        env.EXPECTED_PR_HEAD_SHA = sourceSha
+                        env.EXPECTED_SOURCE_SHA = ''
+                        env.CHECKOUT_REFSPEC = "+${sourceRef}:${env.VERIFIED_REMOTE_REF} +refs/heads/main:refs/remotes/origin/main"
+                    } else if (env.JOB_NAME == 'terraform-provider-danubedata-build/main') {
+                        String sourceRef = params.SOURCE_REF.trim() ?: 'refs/heads/main'
+                        if (sourceRef != 'refs/heads/main') {
+                            error("Protected main build requires refs/heads/main, got ${sourceRef}")
+                        }
+                        if (params.CHANGE_ID.trim() || params.HEAD_REPOSITORY.trim() || params.AUTHOR_ASSOCIATION.trim()) {
+                            error('Protected main builds cannot carry pull request metadata')
+                        }
+
+                        env.BUILD_AGENT_LABEL = 'trusted-build'
+                        env.IS_PULL_REQUEST = 'false'
+                        env.VERIFIED_REMOTE_REF = 'refs/remotes/origin/main'
+                        env.VERIFIED_BASE_REF = ''
+                        env.CHECKOUT_REF = env.VERIFIED_REMOTE_REF
+                        env.EXPECTED_PR_HEAD_SHA = ''
+                        env.EXPECTED_SOURCE_SHA = sourceSha
+                        env.CHECKOUT_REFSPEC = '+refs/heads/main:refs/remotes/origin/main'
+                    } else {
+                        error("This trusted pipeline cannot run as job ${env.JOB_NAME ?: 'unset'}")
+                    }
+                }
+            }
+        }
+
+        stage('Verify immutable source') {
+            agent { label "${env.BUILD_AGENT_LABEL}" }
+            steps {
+                deleteDir()
+                script {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: env.CHECKOUT_REF]],
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [[$class: 'CloneOption', noTags: true, shallow: false]],
+                        userRemoteConfigs: [[
+                            url: env.SOURCE_URL,
+                            refspec: env.CHECKOUT_REFSPEC
+                        ]]
+                    ])
+
+                    String checkedOutSha = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                    String fetchedRefSha = sh(script: "git rev-parse '${env.VERIFIED_REMOTE_REF}'", returnStdout: true).trim()
+                    if (!checkedOutSha.equalsIgnoreCase(fetchedRefSha)) {
+                        error("HEAD ${checkedOutSha} does not match fetched ref ${fetchedRefSha}")
+                    }
+
+                    if (env.IS_PULL_REQUEST == 'true') {
+                        List<String> mergeParents = sh(
+                            script: 'git show -s --format=%P HEAD',
+                            returnStdout: true
+                        ).trim().tokenize(' ')
+                        if (mergeParents.size() != 2) {
+                            error("Pull request merge ref must resolve to a two-parent merge commit, got ${mergeParents.size()} parents")
+                        }
+                        String baseParent = mergeParents[0]
+                        String headParent = mergeParents[1]
+                        if (!headParent.equalsIgnoreCase(env.EXPECTED_PR_HEAD_SHA)) {
+                            error("Merge ref head parent ${headParent} does not match SOURCE_SHA ${env.EXPECTED_PR_HEAD_SHA}")
+                        }
+                        int trustedBaseStatus = sh(
+                            script: "git merge-base --is-ancestor '${baseParent}' '${env.VERIFIED_BASE_REF}'",
+                            returnStatus: true
+                        )
+                        if (trustedBaseStatus != 0) {
+                            error("Merge ref base parent ${baseParent} is not trusted main history")
+                        }
+                    } else if (!fetchedRefSha.equalsIgnoreCase(env.EXPECTED_SOURCE_SHA)) {
+                        error("Fetched main tip ${fetchedRefSha} does not match SOURCE_SHA ${env.EXPECTED_SOURCE_SHA}")
+                    }
+
+                    env.VERIFIED_GIT_SHA = checkedOutSha
+                    env.GITHUB_STATUS_SHA = checkedOutSha
+                    env.GITHUB_STATUS_HEAD_SHA = env.IS_PULL_REQUEST == 'true' ? env.EXPECTED_PR_HEAD_SHA : ''
+                    env.GITHUB_STATUS_CONTEXT = env.IS_PULL_REQUEST == 'true' ? 'ci/jenkins/pr' : 'ci/jenkins/main'
+                    publishGitHubCommitStatus('PENDING', 'Jenkins build is running')
+                }
+
+                sh '''
+                    set -eu
+                    docker run --rm --platform linux/amd64 \
+                        --user "$(id -u):$(id -g)" \
+                        --read-only \
+                        --cap-drop ALL \
+                        --security-opt no-new-privileges \
+                        --tmpfs /tmp:rw,exec,nosuid,nodev,size=4g \
+                        -e GOCACHE=/tmp/go-build \
+                        -e GOMODCACHE=/tmp/go-mod \
+                        -v "$WORKSPACE:/workspace" \
+                        -w /workspace \
+                        "$GO_IMAGE" \
+                        bash -ceu '
+                            go mod verify
+                            go build -v ./...
+                            go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+                        '
+
+                    docker run --rm --platform linux/amd64 \
+                        --user "$(id -u):$(id -g)" \
+                        --read-only \
+                        --cap-drop ALL \
+                        --security-opt no-new-privileges \
+                        --tmpfs /tmp:rw,exec,nosuid,nodev,size=4g \
+                        -e GOCACHE=/tmp/go-build \
+                        -e GOMODCACHE=/tmp/go-mod \
+                        -e GOLANGCI_LINT_CACHE=/tmp/golangci-lint \
+                        -v "$WORKSPACE:/workspace" \
+                        -w /workspace \
+                        "$GOLANGCI_LINT_IMAGE" \
+                        golangci-lint run --timeout=5m
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts allowEmptyArchive: true, artifacts: 'coverage.out', fingerprint: true
+                }
+                cleanup {
+                    script {
+                        if (env.GITHUB_STATUS_SHA?.trim()) {
+                            String buildResult = currentBuild.currentResult
+                            String statusState = buildResult == 'SUCCESS' ? 'SUCCESS' : buildResult == 'ABORTED' ? 'ERROR' : 'FAILURE'
+                            publishGitHubCommitStatus(
+                                statusState,
+                                "Jenkins build ${buildResult.toLowerCase()}"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
