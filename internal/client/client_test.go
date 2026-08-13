@@ -9,10 +9,6 @@ import (
 	"time"
 )
 
-func TestJenkinsFailurePath(t *testing.T) {
-	t.Fatal("intentional Jenkins failure-path smoke test")
-}
-
 // newTestClient creates a client configured to use a test server
 func newTestClient(server *httptest.Server) *Client {
 	return New(Config{
