@@ -37,23 +37,29 @@ void publishGitHubCommitStatusForSha(String targetSha, String statusContext, Str
                 set +x
                 set -euo pipefail
                 /usr/bin/test -n "$GITHUB_STATUS_TOKEN"
-                exec 3<<<"header = \"Authorization: Bearer ${GITHUB_STATUS_TOKEN}\""
-                /usr/bin/jq -cn \
+                payload="$(/usr/bin/jq -cn \
                     --arg state "$STATUS_STATE" \
                     --arg target_url "$STATUS_TARGET_URL" \
                     --arg description "$STATUS_DESCRIPTION" \
                     --arg context "$STATUS_CONTEXT" \
-                    '{state: $state, target_url: $target_url, description: $description, context: $context}' | \
-                    /usr/bin/curl --disable \
+                    '{state: $state, target_url: $target_url, description: $description, context: $context}')"
+
+                {
+                    printf 'header = "Authorization: Bearer %s"\n' "$GITHUB_STATUS_TOKEN"
+                    printf 'header = "Accept: application/vnd.github+json"\n'
+                    printf 'header = "Content-Type: application/json"\n'
+                    printf 'header = "X-GitHub-Api-Version: 2022-11-28"\n'
+                } | /usr/bin/curl --disable --config - \
                         --fail-with-body \
                         --silent \
                         --show-error \
+                        --retry 2 \
+                        --retry-delay 1 \
+                        --retry-all-errors \
+                        --connect-timeout 10 \
+                        --max-time 30 \
                         --request POST \
-                        --header 'Accept: application/vnd.github+json' \
-                        --header 'X-GitHub-Api-Version: 2022-11-28' \
-                        --header 'Content-Type: application/json' \
-                        --config /dev/fd/3 \
-                        --data-binary @- \
+                        --data-binary "$payload" \
                         "https://api.github.com/repos/AdrianSilaghi/terraform-provider-danubedata/statuses/${STATUS_TARGET_SHA}" \
                         >/dev/null
             '''
