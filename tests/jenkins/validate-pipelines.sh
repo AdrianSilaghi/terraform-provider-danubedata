@@ -106,9 +106,13 @@ assert_contains "${BUILD}" '/usr/bin/jq -cn'
 assert_contains "${BUILD}" '/usr/bin/curl --disable'
 assert_contains "${BUILD}" 'https://api.github.com/repos/AdrianSilaghi/terraform-provider-danubedata/statuses/\$\{STATUS_TARGET_SHA\}'
 assert_contains "${BUILD}" '--fail-with-body'
-assert_contains "${BUILD}" '--config /dev/fd/3'
-assert_contains "${BUILD}" '--data-binary @-'
-assert_contains "${BUILD}" 'Authorization: Bearer'
+assert_contains "${BUILD}" 'payload="\$\(/usr/bin/jq -cn'
+assert_contains "${BUILD}" '/usr/bin/curl --disable --config -'
+# This is a literal contract for the trusted Jenkins shell block.
+# shellcheck disable=SC2016
+assert_contains "${BUILD}" '--data-binary "\$payload"'
+assert_contains "${BUILD}" 'Authorization: Bearer %s'
+assert_not_contains "${BUILD}" 'exec[[:space:]]+3<<<|/dev/fd/3'
 assert_before "${BUILD}" 'targetSha ==~ /\[0-9a-fA-F\]\{40\}/' "credentialsId: 'terraform-provider-danubedata-github-status-token'"
 assert_not_contains "${BUILD}" 'GitHubCommitStatusSetter|ManuallyEnteredRepositorySource|ManuallyEnteredShaSource|ManuallyEnteredCommitContextSource'
 assert_not_contains "${BUILD}" 'github-status\.json|status-payload|writeFile.*status|--data-binary @[A-Za-z0-9_./]+'
