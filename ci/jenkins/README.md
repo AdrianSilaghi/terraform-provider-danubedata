@@ -148,3 +148,4 @@ requires Code Owner reviews.
    the full cutover proof; preserve unrelated runners and `.github` content.
 
 <!-- Jenkins PR/main migration smoke test; remove after cutover proof. -->
+<!-- Webhook synchronize event verifies the post-fix trigger path. -->
