@@ -96,7 +96,8 @@ assert_not_contains "${BUILD}" 'Dockerfile|docker build|:latest|codecov-token|CO
 
 # GitHub statuses use a folder-scoped token only around fixed trusted REST code.
 assert_contains "${BUILD}" 'void publishGitHubCommitStatusForSha'
-assert_contains "${BUILD}" "\['ci/jenkins/pr', 'ci/jenkins/pr-head', 'ci/jenkins/main'\]"
+assert_contains "${BUILD}" "\['ci/jenkins/pr', 'ci/jenkins/pr-merge', 'ci/jenkins/main'\]"
+assert_not_contains "${BUILD}" "'ci/jenkins/pr-head'"
 assert_contains "${BUILD}" "\['PENDING', 'SUCCESS', 'FAILURE', 'ERROR'\]"
 assert_contains "${BUILD}" "credentialsId: 'terraform-provider-danubedata-github-status-token'"
 assert_contains "${BUILD}" 'withCredentials\(\[string\('
@@ -116,11 +117,16 @@ assert_not_contains "${BUILD}" 'exec[[:space:]]+3<<<|/dev/fd/3'
 assert_before "${BUILD}" 'targetSha ==~ /\[0-9a-fA-F\]\{40\}/' "credentialsId: 'terraform-provider-danubedata-github-status-token'"
 assert_not_contains "${BUILD}" 'GitHubCommitStatusSetter|ManuallyEnteredRepositorySource|ManuallyEnteredShaSource|ManuallyEnteredCommitContextSource'
 assert_not_contains "${BUILD}" 'github-status\.json|status-payload|writeFile.*status|--data-binary @[A-Za-z0-9_./]+'
-assert_contains "${BUILD}" "publishGitHubCommitStatusForSha\(env.GITHUB_STATUS_HEAD_SHA, 'ci/jenkins/pr-head'"
-assert_contains "${BUILD}" 'publishGitHubCommitStatusForSha\(env.GITHUB_STATUS_SHA, env.GITHUB_STATUS_CONTEXT'
+assert_contains "${BUILD}" "publishGitHubCommitStatusForSha\(env.GITHUB_STATUS_MERGE_SHA, 'ci/jenkins/pr-merge'"
+assert_contains "${BUILD}" "publishGitHubCommitStatusForSha\(env.GITHUB_STATUS_SHA, 'ci/jenkins/pr'"
 assert_before "${BUILD}" \
-    "publishGitHubCommitStatusForSha\(env.GITHUB_STATUS_HEAD_SHA, 'ci/jenkins/pr-head'" \
-    'publishGitHubCommitStatusForSha\(env.GITHUB_STATUS_SHA'
+    "publishGitHubCommitStatusForSha\(env.GITHUB_STATUS_MERGE_SHA, 'ci/jenkins/pr-merge'" \
+    "publishGitHubCommitStatusForSha\(env.GITHUB_STATUS_SHA, 'ci/jenkins/pr'"
+assert_contains "${BUILD}" "GITHUB_STATUS_SHA = env.IS_PULL_REQUEST == 'true' \? env.EXPECTED_PR_HEAD_SHA : checkedOutSha"
+assert_contains "${BUILD}" "GITHUB_STATUS_MERGE_SHA = env.IS_PULL_REQUEST == 'true' \? checkedOutSha : ''"
+assert_contains "${BUILD}" 'GITHUB_STATUS_MERGE_SHA\.equalsIgnoreCase\(env.GITHUB_STATUS_SHA\)'
+assert_contains "${BUILD}" "publishGitHubCommitStatusForSha\(env.GITHUB_STATUS_MERGE_SHA, 'ci/jenkins/pr-merge'"
+assert_contains "${BUILD}" "'FAILURE', 'Jenkins status publication failed'"
 assert_contains "${BUILD}" "IS_PULL_REQUEST == 'true'.*'ci/jenkins/pr'.*'ci/jenkins/main'"
 assert_contains "${BUILD}" "publishGitHubCommitStatus\('PENDING'"
 assert_contains "${BUILD}" 'cleanup \{'
@@ -185,13 +191,14 @@ assert_contains "${DOC}" 'terraform-provider-danubedata-acceptance/main'
 assert_contains "${DOC}" 'terraform-provider-danubedata-release/github'
 assert_contains "${DOC}" 'protected.*main'
 assert_contains "${DOC}" 'same-repository.*collaborator'
-assert_contains "${DOC}" 'ci/jenkins/pr-head.*never.*required'
+assert_contains "${DOC}" 'ci/jenkins/pr-merge.*never.*required'
+assert_contains "${DOC}" 'strict.*up.to.date|up.to.date.*strict'
 assert_contains "${DOC}" 'Commit statuses: read and write'
 assert_contains "${DOC}" 'Codecov.*best-effort|Codecov.*deferred'
 assert_contains "${DOC}" 'Terraform Registry.*webhook'
 assert_contains "${DOC}" 'disabled by default'
 assert_contains "${DOC}" 'quota-limited test tenant'
-assert_contains "${DOC}" 'GitHub-hosted Actions.*remain active|Actions.*remain active'
+assert_contains "${DOC}" 'remains only for tag/manual releases'
 assert_contains "${DOC}" 'Before enabling.*jobs'
 assert_contains "${DOC}" 'direct pushes'
 assert_contains "${DOC}" 'force pushes'
@@ -201,8 +208,14 @@ assert_contains "${DOC}" 'CODEOWNER review|Code Owner reviews'
 assert_contains "${DOC}" 'do not assert.*currently configured|not assert.*currently configured'
 
 # Phase 1 is additive; retirement occurs only after cutover proof.
-[ -f .github/workflows/test.yml ] || fail 'test.yml must remain until Jenkins cutover'
+[ ! -f .github/workflows/test.yml ] || fail 'test.yml must be retired after Jenkins PR/main cutover'
 [ -f .github/workflows/release.yml ] || fail 'release.yml must remain until Jenkins release proof'
+assert_contains .github/workflows/release.yml 'tags:'
+assert_contains .github/workflows/release.yml "- 'v\*'"
+assert_contains .github/workflows/release.yml 'workflow_dispatch:'
+assert_contains .github/workflows/release.yml 'contents: write'
+assert_contains .github/workflows/release.yml 'goreleaser release --clean'
+assert_not_contains .github/workflows/release.yml 'pull_request|branches: \[main, master\]'
 
 bash -n tests/jenkins/validate-pipelines.sh
 shellcheck tests/jenkins/validate-pipelines.sh

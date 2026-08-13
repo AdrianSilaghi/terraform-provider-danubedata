@@ -1,9 +1,9 @@
 # Terraform provider Jenkins migration
 
 These pipelines move the Terraform provider from its offline self-hosted
-GitHub Actions runner to the existing serialized Jenkins host builder. This is
-an additive first phase: GitHub-hosted Actions remain active until the Jenkins
-jobs, webhooks, statuses, and release path have been proven.
+GitHub Actions runner to the existing serialized Jenkins host builder. Jenkins
+now owns pull-request and `main` build, test, and lint execution. GitHub Actions
+remains only for tag/manual releases until the Jenkins release path is proven.
 
 ## Source and job contract
 
@@ -45,8 +45,7 @@ tool image. Each run uses ephemeral in-container Go and lint caches, then runs:
 3. race-enabled tests with atomic `coverage.out`
 4. pinned `golangci-lint run --timeout=5m`
 
-`coverage.out` is archived in Jenkins. Codecov upload is deferred during the
-initial migration; its existing Actions upload remains best-effort and is not a
+`coverage.out` is archived in Jenkins. Codecov upload is deferred and is not a
 gate. A future Jenkins upload must remain best-effort and must not expose a
 token to pull-request code.
 
@@ -57,16 +56,21 @@ absolute `/usr/bin/jq` to `/usr/bin/curl` pipeline; it does not execute checked-
 code or read a workspace-controlled payload file. HTTP or JSON failures fail the
 build. It publishes:
 
-- `ci/jenkins/pr` on the verified synthetic merge commit (authoritative);
-- `ci/jenkins/pr-head` on the verified head for visibility only and never as a required branch-protection context;
+- `ci/jenkins/pr-merge` on the verified synthetic merge commit for visibility only and never as a required branch-protection context;
+- `ci/jenkins/pr` on the verified second-parent head commit (authoritative);
 - `ci/jenkins/main` on the exact protected-main tip.
 
-The visible head result is sent first and the authoritative result last. If
-authoritative publication fails after a green head mirror, the pipeline corrects
-the head to failure and rethrows the original failure. The provider status
+The merge visibility result is sent first and the authoritative head result
+last. Strict up-to-date branch protection is required so a previously green
+head cannot remain mergeable after `main` advances. If authoritative publication
+fails after a green response may have been committed, the pipeline corrects the
+head to failure and rethrows the original failure. The provider status
 credential must be restricted to this repository with only **Commit statuses: read and write** permission. Separate credentials with the same folder-local ID
 belong in the provider PR and build folders; acceptance and release jobs do not
 receive it.
+
+Status publication is fail-closed: if the merge visibility status cannot be
+published, Jenkins marks the required head status failed and aborts the build.
 
 ## Acceptance boundary
 
@@ -119,7 +123,8 @@ an operator must verify a `main` branch ruleset that:
 
 - blocks direct pushes and force pushes;
 - applies to administrators and grants no routine bypass path;
-- requires pull requests and makes `ci/jenkins/pr` a required status context;
+- requires pull requests, strict up-to-date checking, and makes
+  `ci/jenkins/pr` a required status context;
 - requires CODEOWNER review through GitHub's **Require review from Code Owners**
   setting, using `.github/CODEOWNERS` for the trusted Jenkinsfiles, their
   validator, `.goreleaser.yml`, and the CODEOWNERS policy itself.
@@ -136,11 +141,11 @@ requires Code Owner reviews.
 3. Verify every repository-rule precondition above before enabling jobs or
    triggers.
 4. Prove one passing and one intentionally failing same-repository PR; confirm
-   the merge and head status targets.
+   `ci/jenkins/pr` targets the head and `ci/jenkins/pr-merge` targets the merge.
 5. Prove the exact-tip main build and credential-free release snapshot.
-6. Require only `ci/jenkins/pr`; never require `ci/jenkins/pr-head`.
-7. Keep `.github/workflows/test.yml` and `.github/workflows/release.yml` until
-   their respective Jenkins paths have proven equivalent behavior.
+6. Require only `ci/jenkins/pr`; never require `ci/jenkins/pr-merge`.
+7. Keep `.github/workflows/release.yml` until the Jenkins release path has
+   proven equivalent behavior. The replaced PR/main `test.yml` is retired.
 8. Provision and test release credentials, deliberately enable real release in
    protected code, publish one provider version, and verify the GitHub release,
    signature, Registry webhook, and Registry version.
