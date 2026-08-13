@@ -146,3 +146,5 @@ requires Code Owner reviews.
    signature, Registry webhook, and Registry version.
 9. Retire only replaced workflow files and remove the old provider runner after
    the full cutover proof; preserve unrelated runners and `.github` content.
+
+<!-- Jenkins PR/main migration smoke test; remove after cutover proof. -->
