@@ -187,7 +187,7 @@ assert_contains "${DOC}" 'Codecov.*best-effort|Codecov.*deferred'
 assert_contains "${DOC}" 'Terraform Registry.*webhook'
 assert_contains "${DOC}" 'disabled by default'
 assert_contains "${DOC}" 'quota-limited test tenant'
-assert_contains "${DOC}" 'GitHub-hosted Actions.*remain active|Actions.*remain active'
+assert_contains "${DOC}" 'remains only for tag/manual releases'
 assert_contains "${DOC}" 'Before enabling.*jobs'
 assert_contains "${DOC}" 'direct pushes'
 assert_contains "${DOC}" 'force pushes'
@@ -197,8 +197,14 @@ assert_contains "${DOC}" 'CODEOWNER review|Code Owner reviews'
 assert_contains "${DOC}" 'do not assert.*currently configured|not assert.*currently configured'
 
 # Phase 1 is additive; retirement occurs only after cutover proof.
-[ -f .github/workflows/test.yml ] || fail 'test.yml must remain until Jenkins cutover'
+[ ! -f .github/workflows/test.yml ] || fail 'test.yml must be retired after Jenkins PR/main cutover'
 [ -f .github/workflows/release.yml ] || fail 'release.yml must remain until Jenkins release proof'
+assert_contains .github/workflows/release.yml 'tags:'
+assert_contains .github/workflows/release.yml "- 'v\*'"
+assert_contains .github/workflows/release.yml 'workflow_dispatch:'
+assert_contains .github/workflows/release.yml 'contents: write'
+assert_contains .github/workflows/release.yml 'goreleaser release --clean'
+assert_not_contains .github/workflows/release.yml 'pull_request|branches: \[main, master\]'
 
 bash -n tests/jenkins/validate-pipelines.sh
 shellcheck tests/jenkins/validate-pipelines.sh

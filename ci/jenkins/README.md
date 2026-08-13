@@ -1,9 +1,9 @@
 # Terraform provider Jenkins migration
 
 These pipelines move the Terraform provider from its offline self-hosted
-GitHub Actions runner to the existing serialized Jenkins host builder. This is
-an additive first phase: GitHub-hosted Actions remain active until the Jenkins
-jobs, webhooks, statuses, and release path have been proven.
+GitHub Actions runner to the existing serialized Jenkins host builder. Jenkins
+now owns pull-request and `main` build, test, and lint execution. GitHub Actions
+remains only for tag/manual releases until the Jenkins release path is proven.
 
 ## Source and job contract
 
@@ -45,8 +45,7 @@ tool image. Each run uses ephemeral in-container Go and lint caches, then runs:
 3. race-enabled tests with atomic `coverage.out`
 4. pinned `golangci-lint run --timeout=5m`
 
-`coverage.out` is archived in Jenkins. Codecov upload is deferred during the
-initial migration; its existing Actions upload remains best-effort and is not a
+`coverage.out` is archived in Jenkins. Codecov upload is deferred and is not a
 gate. A future Jenkins upload must remain best-effort and must not expose a
 token to pull-request code.
 
@@ -139,13 +138,10 @@ requires Code Owner reviews.
    the merge and head status targets.
 5. Prove the exact-tip main build and credential-free release snapshot.
 6. Require only `ci/jenkins/pr`; never require `ci/jenkins/pr-head`.
-7. Keep `.github/workflows/test.yml` and `.github/workflows/release.yml` until
-   their respective Jenkins paths have proven equivalent behavior.
+7. Keep `.github/workflows/release.yml` until the Jenkins release path has
+   proven equivalent behavior. The replaced PR/main `test.yml` is retired.
 8. Provision and test release credentials, deliberately enable real release in
    protected code, publish one provider version, and verify the GitHub release,
    signature, Registry webhook, and Registry version.
 9. Retire only replaced workflow files and remove the old provider runner after
    the full cutover proof; preserve unrelated runners and `.github` content.
-
-<!-- Jenkins PR/main migration smoke test; remove after cutover proof. -->
-<!-- Webhook synchronize event verifies the post-fix trigger path. -->
