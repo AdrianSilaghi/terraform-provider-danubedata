@@ -1,4 +1,3 @@
-/ci/jenkins/ @AdrianSilaghi
-/tests/jenkins/ @AdrianSilaghi
 /.goreleaser.yml @AdrianSilaghi
 /.github/CODEOWNERS @AdrianSilaghi
+/.github/workflows/ @AdrianSilaghi
