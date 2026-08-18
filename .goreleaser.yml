@@ -54,6 +54,14 @@ signs:
 release:
   draft: false
   prerelease: auto
+  # Pinned explicitly. The release now runs on Forgejo, whose git remote is
+  # git.ifasconsult.ro -- without this GoReleaser auto-detects the remote and
+  # publishes a Forgejo release instead. That would succeed silently while the
+  # Terraform Registry, which ingests only from GitHub releases, quietly stopped
+  # seeing new versions.
+  github:
+    owner: AdrianSilaghi
+    name: terraform-provider-danubedata
 
 changelog:
   sort: asc

@@ -1,0 +1,84 @@
+name: Release
+
+# Tag -> GoReleaser -> signed GitHub release.
+#
+# Ported from .github/workflows/release.yml, which could no longer run: it was
+# `runs-on: self-hosted` and the only GitHub self-hosted runner registered for
+# this repo (`terraform-runner`) is offline.
+#
+# The release is BUILT here and PUBLISHED to github.com. That split is not
+# cosmetic: the Terraform Registry ingests provider releases only from GitHub
+# releases, and this provider is live there (883 downloads at v0.3.4). The
+# GitHub target is pinned in .goreleaser.yml -- GoReleaser otherwise infers the
+# forge from the git remote and would publish a Forgejo release instead,
+# succeeding silently while the Registry stopped seeing new versions.
+#
+# `secrets.GITHUB_TOKEN` is NOT usable for this. On Forgejo it is scoped to this
+# forge; publishing to github.com needs a real GitHub token (GH_RELEASE_TOKEN).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.1.0)'
+        required: true
+        type: string
+
+jobs:
+  goreleaser:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      # Versions pinned to what .github/Dockerfile installed, so the port does
+      # not quietly change the toolchain that produces published binaries.
+      GO_VERSION: '1.24'
+      GORELEASER_VERSION: 'v2.5.1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # GoReleaser needs full history and tags to build the changelog.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install GoReleaser
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}/goreleaser_Linux_x86_64.tar.gz" \
+            | tar -xz -C /usr/local/bin goreleaser
+          goreleaser --version
+
+      - name: Import GPG signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          # Loopback pinentry: there is no tty in the container to prompt on.
+          install -d -m 700 ~/.gnupg
+          echo 'allow-loopback-pinentry' >> ~/.gnupg/gpg-agent.conf
+          echo 'pinentry-mode loopback'  >> ~/.gnupg/gpg.conf
+          gpg-connect-agent reloadagent /bye >/dev/null 2>&1 || true
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: Run GoReleaser
+        env:
+          # Publishes to github.com, not to this forge.
+          GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+          GPG_FINGERPRINT: ${{ secrets.GPG_FINGERPRINT }}
+          # The signing key has no passphrase, and .goreleaser.yml feeds this
+          # on stdin via --passphrase-fd 0. It must be DEFINED but empty: an
+          # undefined variable fails GoReleaser's template rendering.
+          GPG_PASSPHRASE: ''
+        run: goreleaser release --clean
