@@ -653,8 +653,18 @@ func (r *StorageBucketResource) mapBucketToState(bucket *client.StorageBucket, d
 	if bucket.ObjectLockDays != nil {
 		data.ObjectLockDays = types.Int64Value(*bucket.ObjectLockDays)
 	}
+	configuredCors := data.CorsConfiguration
 	data.CorsConfiguration = bucketCorsState(bucket.CorsConfiguration)
+	if data.CorsConfiguration.IsNull() && !configuredCors.IsNull() && !configuredCors.IsUnknown() &&
+		json.Valid([]byte(configuredCors.ValueString())) && bucketCorsState(json.RawMessage(configuredCors.ValueString())).IsNull() {
+		data.CorsConfiguration = configuredCors
+	}
+	configuredLifecycle := data.LifecycleRules
 	data.LifecycleRules = bucketJSONState(bucket.LifecycleRules)
+	if data.LifecycleRules.IsNull() && !configuredLifecycle.IsNull() && !configuredLifecycle.IsUnknown() &&
+		bucketJSONState(json.RawMessage(configuredLifecycle.ValueString())).IsNull() && json.Valid([]byte(configuredLifecycle.ValueString())) {
+		data.LifecycleRules = configuredLifecycle
+	}
 	if len(bucket.Tags) == 0 {
 		if data.Tags.IsNull() || data.Tags.IsUnknown() || len(data.Tags.Elements()) != 0 {
 			data.Tags = types.MapNull(types.StringType)

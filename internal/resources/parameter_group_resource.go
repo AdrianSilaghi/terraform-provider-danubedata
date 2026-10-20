@@ -91,6 +91,7 @@ func (r *ParameterGroupResource) Schema(ctx context.Context, req resource.Schema
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"description": schema.StringAttribute{

@@ -49,18 +49,11 @@ resource "danubedata_serverless" "app" {
 
 ### Private Git Repository
 
-```hcl
-resource "danubedata_serverless" "private" {
-  name            = "internal-api"
-  slug            = "internal-api"
-  deployment_type = "git_repository"
-  repository_url  = "git@github.com:acme/internal-api.git"
-  source_type     = "dockerfile"
-  git_auth_type   = "ssh_key"
-  git_credentials = var.deploy_key
-  port            = 3000
-}
-```
+The API currently discards Git credentials on creation. The provider rejects
+`git_auth_type = "ssh_key"` or `"access_token"`, and any configured `git_credentials`,
+before sending a create request. It cannot create a private Git deployment
+until the API is fixed. Public Git deployments can be created; existing private
+Git deployments can be imported for management.
 
 ### With Resource Profile
 
@@ -125,13 +118,14 @@ resource "danubedata_serverless" "webhook" {
   Only applies to `git_repository` deployments.
 * `source_type` - How to build the container from source: `dockerfile` or
   `buildpack`. Required for `git_repository` deployments.
-* `git_auth_type` - Git authentication method for private repositories:
-  `none`, `ssh_key`, or `access_token`. Defaults to `none`. Only applies to
-  `git_repository` deployments.
+* `git_auth_type` - Git authentication method for `git_repository` deployments.
+  Only `none` is accepted in new configurations until the API persists private
+  Git credentials. New public Git deployments use `none`. Leave this unset when importing a
+  private deployment to preserve its existing authentication type.
 * `git_credentials` - SSH private key or access token for private repository
-  access. Required when `git_auth_type` is `ssh_key` or `access_token`.
-  Sensitive, and never returned by the API. Changing or removing it replaces
-  the container because the update API ignores credential changes.
+  access. Sensitive and never returned by the API. Leave this unset: configured values
+  are rejected during planning while the API discards them. The update API
+  also ignores credential changes.
 * `port` - Port the container listens on. Between 1 and 65535. Defaults to
   `8080`.
 * `min_scale` - Minimum number of instances, between 0 and 100. Defaults to
@@ -168,13 +162,14 @@ terraform import danubedata_serverless.example 7b3f5a92-1c4e-4a08-9d76-3e5c8f1b2
 ```
 
 `git_credentials` is never returned by the API, so it is not populated on
-import. Setting it later replaces the container so creation can store it.
+import. Leave it unset after import; configured credentials are refused during
+planning until the API stores them.
 
 ## Notes
 
-- `slug`, `deployment_type`, and `git_credentials` force replacement. Everything else,
-  including `resource_profile`, `image`, `repository_url` and scaling bounds,
-  is updated in place.
+- `slug`, `deployment_type`, and configured `git_credentials` force replacement.
+  Everything else, including `resource_profile`, `image`, `repository_url` and
+  scaling bounds, is updated in place.
 - The provider validates `deployment_type` locally, but the per-type
   requirements (for example `image` on `docker_image`, or `repository_url` and
   `source_type` on `git_repository`) are enforced by the API and surface as
@@ -182,8 +177,9 @@ import. Setting it later replaces the container so creation can store it.
 - Existing ZIP containers remain readable through the
   `danubedata_serverless_containers` data source. Terraform does not create ZIP
   deployments; use the `danube` CLI to upload the archive.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.
 - Create and update wait for the generation returned by the API to finish and
   report `ready`. A previously ready revision does not count as success for a
   new rollout.

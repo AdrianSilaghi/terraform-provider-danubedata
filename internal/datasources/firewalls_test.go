@@ -2,6 +2,7 @@ package datasources
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,5 +40,32 @@ func TestFirewallsDataSourceCountsRulesWhenListOmitsThem(t *testing.T) {
 	}
 	if len(data.Firewalls) != 1 || data.Firewalls[0].RulesCount.ValueInt64() != 1 || !data.Firewalls[0].IsSystem.ValueBool() {
 		t.Fatalf("firewalls = %#v", data.Firewalls)
+	}
+}
+
+func TestFirewallsDataSourceDoesNotReturnPartialRuleCounts(t *testing.T) {
+	for _, status := range []int{http.StatusForbidden, http.StatusNotFound, http.StatusInternalServerError} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/firewalls" {
+					fmt.Fprint(w, `{"data":[{"id":"fw-1","rules":[]} ,{"id":"fw-2"}],"pagination":{"last_page":1}}`)
+					return
+				}
+				if r.URL.Path != "/firewalls/fw-2" {
+					t.Errorf("unexpected request: %s", r.URL)
+				}
+				w.WriteHeader(status)
+				fmt.Fprint(w, `{"message":"Cannot read firewall rules"}`)
+			}))
+			defer server.Close()
+			d := &FirewallsDataSource{client: client.New(client.Config{BaseURL: server.URL})}
+			var schemaResp datasource.SchemaResponse
+			d.Schema(context.Background(), datasource.SchemaRequest{}, &schemaResp)
+			resp := datasource.ReadResponse{State: tfsdk.State{Schema: schemaResp.Schema}}
+			d.Read(context.Background(), datasource.ReadRequest{}, &resp)
+			if !resp.Diagnostics.HasError() {
+				t.Fatal("failed detail lookup returned a successful partial listing")
+			}
+		})
 	}
 }

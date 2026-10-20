@@ -217,7 +217,8 @@ func (c *Client) ListStorageBuckets(ctx context.Context) ([]StorageBucket, error
 
 // WaitForStorageBucketStatus waits for a storage bucket to reach a target status
 func (c *Client) WaitForStorageBucketStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -242,10 +243,6 @@ func (c *Client) WaitForStorageBucketStatus(ctx context.Context, id string, targ
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for storage bucket %s to reach status %s", id, targetStatus)
-			}
-
 			bucket, err := c.GetStorageBucket(ctx, id)
 			if err != nil {
 				if IsNotFound(err) && targetStatus == "deleted" {
@@ -268,18 +265,18 @@ func (c *Client) WaitForStorageBucketStatus(ctx context.Context, id string, targ
 
 // WaitForStorageBucketDeletion waits for a storage bucket to be deleted
 func (c *Client) WaitForStorageBucketDeletion(ctx context.Context, id string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+	tick := time.After(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for storage bucket %s to be deleted", id)
-			}
+		case <-tick:
+			tick = ticker.C
 
 			_, err := c.GetStorageBucket(ctx, id)
 			if err != nil {

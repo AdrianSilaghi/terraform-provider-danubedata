@@ -220,18 +220,18 @@ func (c *Client) DeleteVpsSnapshot(ctx context.Context, id int64) error {
 
 // WaitForVpsSnapshotStatus waits for a VPS snapshot to reach a target status
 func (c *Client) WaitForVpsSnapshotStatus(ctx context.Context, id int64, targetStatus string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+	tick := time.After(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for VPS snapshot %d to reach status %s", id, targetStatus)
-			}
+		case <-tick:
+			tick = ticker.C
 
 			snapshot, err := c.GetVpsSnapshot(ctx, id)
 			if err != nil {
@@ -309,18 +309,18 @@ func (c *Client) DeleteCacheSnapshot(ctx context.Context, id int64) error {
 
 // WaitForCacheSnapshotStatus waits for a cache snapshot to reach a target status
 func (c *Client) WaitForCacheSnapshotStatus(ctx context.Context, id int64, targetStatus string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	tick := time.After(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for cache snapshot %d to reach status %s", id, targetStatus)
-			}
+		case <-tick:
+			tick = ticker.C
 
 			snapshot, err := c.GetCacheSnapshot(ctx, id)
 			if err != nil {
@@ -397,18 +397,18 @@ func (c *Client) DeleteDatabaseSnapshot(ctx context.Context, id int64) error {
 
 // WaitForDatabaseSnapshotStatus waits for a database snapshot to reach a target status
 func (c *Client) WaitForDatabaseSnapshotStatus(ctx context.Context, id int64, targetStatus string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	tick := time.After(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for database snapshot %d to reach status %s", id, targetStatus)
-			}
+		case <-tick:
+			tick = ticker.C
 
 			snapshot, err := c.GetDatabaseSnapshot(ctx, id)
 			if err != nil {

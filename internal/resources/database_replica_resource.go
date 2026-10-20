@@ -193,12 +193,13 @@ func (r *DatabaseReplicaResource) Read(ctx context.Context, req resource.ReadReq
 }
 
 func (r *DatabaseReplicaResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// All configurable fields require replacement; Update is only invoked for computed-only
-	// deltas (e.g., timeouts block). Read refreshes computed state on its own — so here we
-	// preserve existing state rather than writing the plan back (which would contain
-	// Unknown values for computed attributes and corrupt state).
+	// Preserve computed replica values while accepting local timeout changes.
 	var data DatabaseReplicaResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("timeouts"), &data.Timeouts)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

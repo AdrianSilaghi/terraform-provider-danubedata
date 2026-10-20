@@ -113,5 +113,6 @@ the domain's UUID.
   through this resource.
 - There is no `updated_at` attribute on this resource, and no `timeouts` block.
 - Destroying the parent `danubedata_static_site` takes its domains with it.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

@@ -97,5 +97,6 @@ terraform import danubedata_database_snapshot.example 5142
   an instance you are about to tear down.
 - Restoring from a snapshot is not exposed as a Terraform resource; use the
   dashboard or API.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

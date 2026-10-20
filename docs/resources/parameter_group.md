@@ -146,5 +146,6 @@ terraform import danubedata_parameter_group.example 42
   place.
 - Attaching a group to an instance is done from the instance side, through
   `parameter_group_id` on `danubedata_cache` or `danubedata_database`.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

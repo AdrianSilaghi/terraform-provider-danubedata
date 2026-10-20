@@ -5,7 +5,7 @@ The DanubeData Terraform provider allows you to manage [DanubeData](https://danu
 ## Requirements
 
 - [Terraform](https://www.terraform.io/downloads.html) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.24 (for building from source)
+- [Go](https://go.dev/doc/install) >= 1.26.10 (for building from source)
 - A DanubeData account and API token
 
 ## Installation
@@ -28,8 +28,11 @@ terraform {
 ```bash
 git clone https://github.com/AdrianSilaghi/terraform-provider-danubedata.git
 cd terraform-provider-danubedata
-make install
+make install VERSION=0.3.5-dev
 ```
+
+For local testing, set `version = "= 0.3.5-dev"` in `required_providers` to match
+the installed build. This does not publish a provider release.
 
 ## Authentication
 
@@ -156,7 +159,7 @@ See the [examples](examples/) directory for complete configuration examples:
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.26.10+
 - Terraform 1.0+
 - Make
 
@@ -167,10 +170,13 @@ See the [examples](examples/) directory for complete configuration examples:
 make build
 
 # Install to local Terraform plugins directory
-make install
+make install VERSION=0.3.5-dev
 
 # Run tests
 make test
+
+# Run tests with coverage
+make test-coverage
 
 # Run acceptance tests (requires API token)
 make testacc

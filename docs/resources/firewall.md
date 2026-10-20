@@ -134,7 +134,14 @@ terraform import danubedata_firewall.example 4d1e7b90-6c25-4a38-b1f7-8e93c05a2d6
 ## Notes
 
 - Changing `rules` sends the full desired list. Removing an element removes that rule. Name or description changes leave the rule set untouched.
+- Rule changes also queue deployment to attached instances. Deployment is
+  asynchronous; a successful apply confirms that deployment was queued.
+- If saving rules succeeds but queuing deployment fails, the error identifies
+  the recovery action: use the console's Deploy action or retry
+  `POST /api/v1/firewalls/{id}/deploy`. A later apply may see the saved rules
+  as unchanged and will not necessarily retry deployment.
 - Each rule's `id` is assigned by the API and is read-only; do not set it in
   configuration.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

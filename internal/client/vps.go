@@ -246,7 +246,8 @@ func (c *Client) ListVps(ctx context.Context) ([]VpsInstance, error) {
 
 // WaitForVpsStatus waits for a VPS to reach a target status
 func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -271,10 +272,6 @@ func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus s
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for VPS %s to reach status %s", id, targetStatus)
-			}
-
 			status, err := c.GetVpsStatus(ctx, id)
 			if err != nil {
 				if IsNotFound(err) && targetStatus == "deleted" {
@@ -297,18 +294,18 @@ func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus s
 
 // WaitForVpsDeletion waits for a VPS to be deleted
 func (c *Client) WaitForVpsDeletion(ctx context.Context, id string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	tick := time.After(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for VPS %s to be deleted", id)
-			}
+		case <-tick:
+			tick = ticker.C
 
 			_, err := c.GetVps(ctx, id)
 			if err != nil {

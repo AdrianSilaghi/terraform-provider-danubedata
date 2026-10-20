@@ -65,3 +65,62 @@ func TestConfigureProjectScope(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigureCredentials(t *testing.T) {
+	for _, tc := range []struct {
+		name, envToken string
+		token, baseURL interface{}
+		wantError      bool
+		defaultURL     bool
+	}{
+		{name: "environment credentials", envToken: "environment-token"},
+		{name: "explicit token", envToken: "unused-token", token: "test"},
+		{name: "missing token", wantError: true},
+		{name: "missing token with default API URL", wantError: true, defaultURL: true},
+		{name: "empty token overrides environment", envToken: "unused-token", token: "", wantError: true},
+		{name: "unknown token", token: tftypes.UnknownValue, wantError: true},
+		{name: "unknown URL", envToken: "environment-token", baseURL: tftypes.UnknownValue, wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("DANUBEDATA_API_TOKEN", tc.envToken)
+			t.Setenv("DANUBEDATA_TEAM_ID", "")
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				want := tc.envToken
+				if token, ok := tc.token.(string); ok {
+					want = token
+				}
+				if r.Header.Get("Authorization") != "Bearer "+want || r.Header.Get("User-Agent") != "terraform-provider-danubedata/credential-test" {
+					t.Errorf("incorrect request authentication or provider version")
+				}
+				fmt.Fprint(w, `{"data":[],"pagination":{"last_page":1}}`)
+			}))
+			defer server.Close()
+			t.Setenv("DANUBEDATA_BASE_URL", server.URL)
+			if tc.defaultURL {
+				t.Setenv("DANUBEDATA_BASE_URL", "")
+			}
+			p := New("credential-test")()
+			var schema provider.SchemaResponse
+			p.Schema(context.Background(), provider.SchemaRequest{}, &schema)
+			typ := schema.Schema.Type().TerraformType(context.Background()).(tftypes.Object)
+			raw := tftypes.NewValue(typ, map[string]tftypes.Value{
+				"base_url":  tftypes.NewValue(tftypes.String, tc.baseURL),
+				"api_token": tftypes.NewValue(tftypes.String, tc.token),
+				"team_id":   tftypes.NewValue(tftypes.Number, nil),
+			})
+			var resp provider.ConfigureResponse
+			p.Configure(context.Background(), provider.ConfigureRequest{Config: tfsdk.Config{Raw: raw, Schema: schema.Schema}}, &resp)
+			if resp.Diagnostics.HasError() != tc.wantError {
+				t.Fatalf("diagnostics: %v", resp.Diagnostics)
+			}
+			if !tc.wantError {
+				if resp.ResourceData != resp.DataSourceData {
+					t.Fatal("resources and data sources received different clients")
+				}
+				if _, err := resp.ResourceData.(*client.Client).ListSshKeys(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}

@@ -137,7 +137,7 @@ In addition to the arguments above, the following are exported:
 * `port` - Connection port.
 * `password` - Cache password. Sensitive.
 * `connection_info` - Full connection URI, e.g. `redis://host:6379`. Sensitive.
-* `monthly_cost` - Estimated monthly cost in euros.
+* `monthly_cost` - Estimated monthly cost in the API billing currency.
 * `monthly_cost_cents` - Estimated monthly cost in cents.
 * `created_at` / `updated_at` / `deployed_at` - Timestamps.
 
@@ -167,5 +167,6 @@ terraform import danubedata_cache.example 4c1e9b70-8a52-4d6f-b3c1-6e2f9d0a5b48
 - Updates are applied asynchronously: the API returns before the change is
   deployed, so the instance briefly reports `pending` and returns to `running`
   once reconciled.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

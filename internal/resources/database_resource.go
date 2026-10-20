@@ -86,17 +86,17 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "Name of the database instance. Must be lowercase alphanumeric with hyphens (DNS compatible).",
+				Description: "Name of the database instance. Must start with a lowercase letter, followed by lowercase letters, digits, or hyphens.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`),
-						"must be lowercase alphanumeric with hyphens (DNS compatible)",
+						regexp.MustCompile(`^[a-z]([-a-z0-9]*[a-z0-9])?$`),
+						"must start with a lowercase letter and contain only lowercase letters, digits, or hyphens",
 					),
-					stringvalidator.LengthBetween(2, 63),
+					stringvalidator.LengthBetween(2, 50),
 				},
 			},
 			"status": schema.StringAttribute{

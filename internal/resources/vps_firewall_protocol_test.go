@@ -14,6 +14,7 @@ import (
 func TestUnitVpsResourceLifecycle(t *testing.T) {
 	profile, exists := "nano_shared", false
 	vpsStatus := "running"
+	resizeAwaitingRefresh := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method + " " + r.URL.Path {
@@ -29,8 +30,12 @@ func TestUnitVpsResourceLifecycle(t *testing.T) {
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"instance":{"id":"vps-1"}}`))
 		case "GET /vps/vps-1/status":
+			if resizeAwaitingRefresh {
+				t.Error("status is still stopped before the queued resize job starts; it cannot prove resize completion")
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": vpsStatus})
 		case "GET /vps/vps-1":
+			resizeAwaitingRefresh = false
 			if !exists {
 				w.WriteHeader(http.StatusNotFound)
 				return
@@ -56,6 +61,7 @@ func TestUnitVpsResourceLifecycle(t *testing.T) {
 				t.Errorf("VPS resize: %#v", body)
 			}
 			profile = "micro_shared"
+			resizeAwaitingRefresh = true
 			_, _ = w.Write([]byte(`{"instance":{"id":"vps-1"}}`))
 		case "DELETE /vps/vps-1":
 			exists = false
@@ -90,6 +96,7 @@ resource "danubedata_vps" "test" {
 
 func TestUnitFirewallResourceLifecycle(t *testing.T) {
 	name, exists, rules := "unit-fw", false, []map[string]any{}
+	deploys := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		respond := func() {
@@ -149,6 +156,9 @@ func TestUnitFirewallResourceLifecycle(t *testing.T) {
 		case "DELETE /firewalls/fw-1":
 			exists = false
 			w.WriteHeader(http.StatusNoContent)
+		case "POST /firewalls/fw-1/deploy":
+			deploys++
+			w.WriteHeader(http.StatusAccepted)
 		default:
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -180,4 +190,7 @@ resource "danubedata_firewall" "test" {
 		{Config: config("renamed-fw", false), Check: resource.TestCheckResourceAttr("danubedata_firewall.test", "rules.#", "0")},
 		{ResourceName: "danubedata_firewall.test", ImportState: true, ImportStateVerify: true},
 	}})
+	if deploys != 2 {
+		t.Errorf("rule changes queued %d deployments, want 2", deploys)
+	}
 }

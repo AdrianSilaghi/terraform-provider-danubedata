@@ -35,3 +35,26 @@ func TestStaticSiteDomainStateUpgradePreservesAttachment(t *testing.T) {
 		t.Fatalf("old computed DNS object survived: %v", got.DNSInstructions)
 	}
 }
+
+func TestStaticSiteDomainStateUpgradeRejectsUnusableState(t *testing.T) {
+	ctx := context.Background()
+	r := &StaticSiteDomainResource{}
+	var current resource.SchemaResponse
+	r.Schema(ctx, resource.SchemaRequest{}, &current)
+	for _, tc := range []struct {
+		name string
+		raw  *tfprotov6.RawState
+	}{
+		{name: "missing", raw: nil},
+		{name: "malformed", raw: &tfprotov6.RawState{JSON: []byte(`{"domain":`)}},
+		{name: "wrong shape", raw: &tfprotov6.RawState{JSON: []byte(`[]`)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := resource.UpgradeStateResponse{State: tfsdk.State{Schema: current.Schema}}
+			r.UpgradeState(ctx)[0].StateUpgrader(ctx, resource.UpgradeStateRequest{RawState: tc.raw}, &resp)
+			if !resp.Diagnostics.HasError() {
+				t.Fatal("unusable prior state must fail instead of losing the attachment")
+			}
+		})
+	}
+}

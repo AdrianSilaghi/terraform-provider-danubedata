@@ -306,10 +306,13 @@ func sameBucketPermissions(want map[string]string, got []client.StorageKeyBucket
 	if len(want) != len(got) {
 		return false
 	}
+	seen := make(map[string]bool, len(got))
 	for _, permission := range got {
-		if want[permission.BucketID] != permission.Level {
+		level, exists := want[permission.BucketID]
+		if seen[permission.BucketID] || !exists || level != permission.Level {
 			return false
 		}
+		seen[permission.BucketID] = true
 	}
 	return true
 }

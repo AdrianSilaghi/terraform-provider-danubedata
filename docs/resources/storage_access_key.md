@@ -135,5 +135,6 @@ absent from state; to get a usable secret you must create a replacement key.
   existing Terraform state; import cannot recover it.
 - A `team` key reaches every bucket in the active team. For limited access use
   `scope = "buckets"` and explicit permissions or `scope = "none"` with a bucket policy.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

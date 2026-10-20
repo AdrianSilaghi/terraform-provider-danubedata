@@ -182,7 +182,8 @@ func (c *Client) ListDatabases(ctx context.Context) ([]DatabaseInstance, error) 
 
 // WaitForDatabaseStatus waits for a database instance to reach a target status
 func (c *Client) WaitForDatabaseStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -207,10 +208,6 @@ func (c *Client) WaitForDatabaseStatus(ctx context.Context, id string, targetSta
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for database %s to reach status %s", id, targetStatus)
-			}
-
 			instance, err := c.GetDatabase(ctx, id)
 			if err != nil {
 				if IsNotFound(err) && targetStatus == "deleted" {
@@ -233,18 +230,18 @@ func (c *Client) WaitForDatabaseStatus(ctx context.Context, id string, targetSta
 
 // WaitForDatabaseDeletion waits for a database instance to be deleted
 func (c *Client) WaitForDatabaseDeletion(ctx context.Context, id string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	tick := time.After(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for database %s to be deleted", id)
-			}
+		case <-tick:
+			tick = ticker.C
 
 			_, err := c.GetDatabase(ctx, id)
 			if err != nil {

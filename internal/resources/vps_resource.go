@@ -117,7 +117,7 @@ func (r *VpsResource) Schema(ctx context.Context, req resource.SchemaRequest, re
 			"can_be_rebooted":  schema.BoolAttribute{Description: "Whether the VPS can currently be rebooted.", Computed: true},
 			"can_be_destroyed": schema.BoolAttribute{Description: "Whether the VPS can currently be destroyed.", Computed: true},
 			"resource_profile": schema.StringAttribute{
-				Description: "Resource profile slug for the VPS (e.g. nano_shared, micro_shared). Determines cpu_cores, memory_size_gb, and storage_size_gb. Available slugs are dynamic and validated by the API.",
+				Description: "Resource profile slug for the VPS (e.g. nano_shared, micro_shared). Determines cpu_cores, memory_size_gb, and storage_size_gb. Available slugs are dynamic and validated by the API. Resizes are queued and may still be applying after Terraform returns.",
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString("nano_shared"),
@@ -249,7 +249,7 @@ func (r *VpsResource) Schema(ctx context.Context, req resource.SchemaRequest, re
 				Computed:    true,
 			},
 			"monthly_cost": schema.Float64Attribute{
-				Description: "Monthly cost in dollars.",
+				Description: "Estimated monthly cost in the API billing currency.",
 				Computed:    true,
 			},
 			"deployed_at": schema.StringAttribute{
@@ -474,18 +474,8 @@ func (r *VpsResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			return
 		}
 
-		// A resized stopped VPS remains stopped.
-		targetStatus := "running"
-		if state.Status.ValueString() == "stopped" {
-			targetStatus = "stopped"
-		}
-		err = r.client.WaitForVpsStatus(ctx, data.ID.ValueString(), targetStatus, updateTimeout)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed waiting for VPS after update", err.Error())
-			return
-		}
-
-		// Refresh state after waiting
+		// The API updates requested specs before its resize job starts, so a stopped
+		// status here cannot prove that the new sizing has reached the VM.
 		vps, err := r.client.GetVps(ctx, data.ID.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to read VPS after update", err.Error())
@@ -494,6 +484,7 @@ func (r *VpsResource) Update(ctx context.Context, req resource.UpdateRequest, re
 
 		r.mapVpsToState(vps, &data)
 		r.fetchVpsPassword(ctx, vps.ID, &data)
+		resp.Diagnostics.AddWarning("VPS resize queued", "The API accepted the requested specs and queued a resize job. Terraform cannot verify that the new sizing is applied; check the VPS status before relying on the new capacity.")
 	}
 
 	// Any path that did not go through UpdateVps still holds the plan's unknown

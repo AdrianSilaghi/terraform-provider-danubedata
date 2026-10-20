@@ -83,6 +83,11 @@ func (d *StaticSitesDataSource) Configure(ctx context.Context, req datasource.Co
 }
 
 func (d *StaticSitesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	if d.client == nil {
+		resp.Diagnostics.AddError("Unconfigured Client", "Expected configured client.")
+		return
+	}
+
 	var data StaticSitesDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {

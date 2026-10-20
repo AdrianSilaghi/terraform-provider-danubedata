@@ -87,14 +87,6 @@ func ConfigCompose(configs ...string) string {
 	return b.String()
 }
 
-// CheckResourceAttrSet is a helper to check if an attribute is set
-func CheckResourceAttrSet(name, key string) func(s interface{}) error {
-	return func(s interface{}) error {
-		// This is a placeholder - actual implementation would use terraform-plugin-testing
-		return nil
-	}
-}
-
 // SkipIfEnvNotSet skips the test if the specified environment variable is not set
 func SkipIfEnvNotSet(t *testing.T, envVar string) {
 	if os.Getenv(envVar) == "" {

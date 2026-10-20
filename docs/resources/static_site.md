@@ -70,5 +70,6 @@ terraform import danubedata_static_site.example 7c3e5a91-42bd-4f08-9a17-5d8b0c6e
 - Creating the resource does not publish content. Deploy with the `danube` CLI
   or from CI/CD after the site exists.
 - Custom domains are managed separately, with `danubedata_static_site_domain`.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

@@ -11,9 +11,13 @@ where generated schema metadata was incomplete.
   `cpu_platform = "intel"`. The API requires a choice and has no default.
 - Every `danubedata_serverless` configuration must supply its DNS-compatible
   `slug`. Changing a slug replaces the container.
-- Serverless Git credential changes require replacement because the API update
-  does not rotate or clear the stored credential. ZIP archive creation is
-  rejected during planning; use the Danube CLI to upload an archive.
+- The serverless create API currently discards Git credentials. The provider
+  refuses authenticated `git_auth_type` values and configured `git_credentials`
+  on creation; public Git deployments and imports of existing private
+  deployments remain available. Credential changes require replacement because
+  the update API does not rotate or clear them.
+  ZIP archive creation is rejected during planning; use the Danube CLI to
+  upload an archive.
 - `danubedata_static_site_domain.dns_instructions` is the instruction string
   returned by the API. It is not an object containing DNS record attributes.
 - A static site's legacy `plan` setting is deprecated. Static site capacity is

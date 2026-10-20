@@ -118,7 +118,7 @@ In addition to the arguments above, the following are exported:
   is the name to pass to S3 clients.
 * `size_bytes` - Current size of the bucket in bytes.
 * `object_count` - Number of objects in the bucket.
-* `monthly_cost` - Estimated monthly cost in euros.
+* `monthly_cost` - Estimated monthly cost in the API billing currency.
 * `monthly_cost_cents` - Estimated monthly cost in cents.
 * `created_at` / `updated_at` - Timestamps.
 
@@ -147,5 +147,6 @@ terraform import danubedata_storage_bucket.example 2d9a7f31-6c08-4b5e-8a13-9f4e2
   client, since the platform prefixes bucket names per team.
 - For current pricing, including storage and egress allowances, see
   <https://danubedata.ro/pricing>.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

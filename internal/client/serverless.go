@@ -221,7 +221,8 @@ func (c *Client) WaitForServerlessGeneration(ctx context.Context, id string, gen
 
 // WaitForServerlessStatus waits for a serverless container to reach a target status
 func (c *Client) WaitForServerlessStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -236,16 +237,15 @@ func (c *Client) WaitForServerlessStatus(ctx context.Context, id string, targetS
 	if status == targetStatus {
 		return nil
 	}
+	if status == "error" || status == "failed" {
+		return fmt.Errorf("serverless container %s entered error state", id)
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for serverless container %s to reach status %s", id, targetStatus)
-			}
-
 			status, err := c.GetServerlessStatus(ctx, id)
 			if err != nil {
 				if IsNotFound(err) && targetStatus == "deleted" {
@@ -267,7 +267,8 @@ func (c *Client) WaitForServerlessStatus(ctx context.Context, id string, targetS
 
 // WaitForServerlessDeletion waits for a serverless container to be deleted
 func (c *Client) WaitForServerlessDeletion(ctx context.Context, id string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -283,10 +284,6 @@ func (c *Client) WaitForServerlessDeletion(ctx context.Context, id string, timeo
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for serverless container %s to be deleted", id)
-			}
-
 		}
 	}
 }

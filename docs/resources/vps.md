@@ -152,7 +152,7 @@ In addition to the arguments above, the following are exported:
 * `public_ip` - Public IPv4 address.
 * `private_ip` - Private IP address.
 * `ipv6_address` - IPv6 address.
-* `monthly_cost` - Estimated monthly cost in euros.
+* `monthly_cost` - Estimated monthly cost in the API billing currency.
 * `monthly_cost_cents` - Estimated monthly cost in cents.
 * `created_at` / `updated_at` / `deployed_at` - Timestamps.
 
@@ -174,6 +174,11 @@ terraform import danubedata_vps.example 9f8c2d14-3b7a-4e51-9c6d-2a1f8e0b7c33
   Protect your state file accordingly.
 - Only `resource_profile` and `cpu_allocation_type` are updated in place. Every
   other argument replaces the instance when changed, which destroys the disk.
+- In-place resize is asynchronous. Apply confirms the API accepted the requested
+  settings; the API does not expose an applied revision to confirm that the VM
+  has finished resizing. Check the console for completion before depending on
+  the new capacity.
 - Deleting a VPS also deletes its snapshots. See `danubedata_vps_snapshot`.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

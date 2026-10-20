@@ -37,6 +37,8 @@ resource "danubedata_vps" "server" {
 * `public_key` - The SSH public key in OpenSSH format, e.g. `ssh-rsa AAAA...`
   or `ssh-ed25519 AAAA...`.
 
+### Optional
+
 * `is_default` - Make this your default key when created. Defaults to `false`; changing it replaces the key.
 
 Names are immutable in the API, so changing `name` also replaces the key.

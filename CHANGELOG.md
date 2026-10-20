@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve resource IDs when asynchronous creation succeeds but waiting or refresh fails, so Terraform can recover the created resource.
 - Accept timeout-only snapshot updates without overwriting computed values or discarding the new timeout.
 - Reject HTTP redirects instead of treating a redirected API mutation as successful.
+- Enforce readiness and deletion timeouts during HTTP requests and polling.
+- Report VPS resize as asynchronous because the API does not expose completion.
+- Queue firewall deployment after rule updates and reject unresolved ports or source identities before changing rules.
+- Preserve explicit empty bucket settings and reject mismatched or duplicate access-key permission responses.
+- Preserve imported serverless Git authentication and reject new private Git credentials that the API silently discards.
+- Accept replica timeout changes, replace immutable parameter-group families, and validate database names against API rules.
 - Preserve write-only settings and accept the API's empty-array encoding for associative fields.
 - Update every standalone example and the matching resource documentation. `make docs` now describes the hand-maintained documentation workflow instead of overwriting it with generated pages.
 
@@ -21,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional provider `team_id` and `DANUBEDATA_TEAM_ID` project selection through `X-Team-Id`.
 - Configuration and response fields for the supported resource families, including network tier, storage autoscaling, serverless rollout generation, scoped storage keys, and bucket settings.
 - Offline Terraform lifecycle tests and response fixtures grounded in the current API, alongside focused client and state regression tests.
+
+### Changed
+
+- Building from source now requires Go 1.26.10. Updated vulnerable transitive dependencies and the release build's Go version.
+- Use the same Makefile targets through both entry points; coverage measures cross-package calls, and local installation uses the selected version.
 
 ## [0.3.4] - 2026-07-19
 

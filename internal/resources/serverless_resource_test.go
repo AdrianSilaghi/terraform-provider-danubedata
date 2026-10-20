@@ -10,7 +10,6 @@ import (
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 )
 
 func TestUnitServerlessZipUploadRejectedBeforeAPI(t *testing.T) {
@@ -41,7 +40,7 @@ resource "danubedata_serverless" "zip" {
 
 func TestUnitServerlessResource_Lifecycle(t *testing.T) {
 	name := "initial"
-	gitAuthType := "access_token"
+	gitAuthType := "none"
 	created := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -54,10 +53,15 @@ func TestUnitServerlessResource_Lifecycle(t *testing.T) {
 			if body["slug"] != "unit-app" {
 				t.Errorf("slug = %v", body["slug"])
 			}
-			if body["git_credentials"] != nil && body["git_credentials"] != "unit-secret" && body["git_credentials"] != "rotated-secret" {
-				t.Errorf("git_credentials missing from create: %v", body["git_credentials"])
+			if _, ok := body["git_credentials"]; ok {
+				t.Error("public Git create sent credentials")
 			}
-			gitAuthType = body["git_auth_type"].(string)
+			if body["git_auth_type"] != "none" {
+				t.Errorf("public Git create auth = %v, want none", body["git_auth_type"])
+			}
+			if auth, ok := body["git_auth_type"].(string); ok {
+				gitAuthType = auth
+			}
 			created = true
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{"container": map[string]interface{}{"id": "unit-1", "spec_generation": 1}})
@@ -97,14 +101,7 @@ func TestUnitServerlessResource_Lifecycle(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := func(name, credential string) string {
-		secret := ""
-		authType := "access_token"
-		if credential != "" {
-			secret = fmt.Sprintf("git_credentials = %q", credential)
-		} else {
-			authType = "none"
-		}
+	config := func(name string) string {
 		return fmt.Sprintf(`provider "danubedata" {
   base_url = %q
   api_token = "test-token"
@@ -115,23 +112,15 @@ resource "danubedata_serverless" "test" {
   deployment_type = "git_repository"
   repository_url = "https://github.com/example/app"
   source_type = "dockerfile"
-  git_auth_type = %q
-  %s
-}`, server.URL, name, authType, secret)
+}`, server.URL, name)
 	}
 	resource.Test(t, resource.TestCase{
 		IsUnitTest:               true,
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			{Config: config("initial", "unit-secret"), Check: resource.TestCheckResourceAttr("danubedata_serverless.test", "slug", "unit-app")},
-			{Config: config("renamed", "unit-secret"), Check: resource.TestCheckResourceAttr("danubedata_serverless.test", "name", "renamed")},
-			{Config: config("renamed", "rotated-secret"), ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
-				plancheck.ExpectResourceAction("danubedata_serverless.test", plancheck.ResourceActionReplace),
-			}}},
-			{Config: config("renamed", ""), ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
-				plancheck.ExpectResourceAction("danubedata_serverless.test", plancheck.ResourceActionReplace),
-			}}},
-			{ResourceName: "danubedata_serverless.test", ImportState: true, ImportStateVerify: true, ImportStateVerifyIgnore: []string{"git_credentials"}},
+			{Config: config("initial"), Check: resource.TestCheckResourceAttr("danubedata_serverless.test", "slug", "unit-app")},
+			{Config: config("renamed"), Check: resource.TestCheckResourceAttr("danubedata_serverless.test", "name", "renamed")},
+			{ResourceName: "danubedata_serverless.test", ImportState: true, ImportStateVerify: true},
 		},
 	})
 }

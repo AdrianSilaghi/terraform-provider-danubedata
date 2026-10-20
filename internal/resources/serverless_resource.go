@@ -24,9 +24,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &ServerlessResource{}
-	_ resource.ResourceWithConfigure   = &ServerlessResource{}
-	_ resource.ResourceWithImportState = &ServerlessResource{}
+	_ resource.Resource                   = &ServerlessResource{}
+	_ resource.ResourceWithConfigure      = &ServerlessResource{}
+	_ resource.ResourceWithImportState    = &ServerlessResource{}
+	_ resource.ResourceWithValidateConfig = &ServerlessResource{}
 )
 
 type ServerlessResource struct {
@@ -139,16 +140,15 @@ func (r *ServerlessResource) Schema(ctx context.Context, req resource.SchemaRequ
 				},
 			},
 			"git_auth_type": schema.StringAttribute{
-				Description: "Git authentication method for private repositories: 'none', 'ssh_key', or 'access_token'. Only applies to git_repository deployments.",
+				Description: "Git authentication method. Leave unset to preserve the method on an imported container; new private Git authentication is unavailable until the API persists credentials.",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("none"),
-				Validators: []validator.String{
-					stringvalidator.OneOf("none", "ssh_key", "access_token"),
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"git_credentials": schema.StringAttribute{
-				Description:   "SSH private key or access token for private repository access. Changes replace the container because the update API does not apply credential changes. Never returned by the API.",
+				Description:   "SSH private key or access token for private repository access. Currently refused because the API does not persist it. Never returned by the API.",
 				Optional:      true,
 				Sensitive:     true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
@@ -213,6 +213,21 @@ func (r *ServerlessResource) Schema(ctx context.Context, req resource.SchemaRequ
 	}
 }
 
+func (r *ServerlessResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var auth, credentials types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("git_auth_type"), &auth)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("git_credentials"), &credentials)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if auth.IsUnknown() || (!auth.IsNull() && auth.ValueString() != "none") {
+		resp.Diagnostics.AddAttributeError(path.Root("git_auth_type"), "Private Git repositories are not supported", "The API currently accepts Git credentials without saving them. Use a public Git repository until the API persists credentials.")
+	}
+	if !credentials.IsNull() {
+		resp.Diagnostics.AddAttributeError(path.Root("git_credentials"), "Git credentials are not supported", "The API currently accepts Git credentials without saving them. Leave git_credentials unset until the API persists credentials.")
+	}
+}
+
 func (r *ServerlessResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -234,6 +249,11 @@ func (r *ServerlessResource) Create(ctx context.Context, req resource.CreateRequ
 	var data ServerlessResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if data.GitAuthType.ValueString() == "ssh_key" || data.GitAuthType.ValueString() == "access_token" ||
+		(!data.GitCredentials.IsNull() && !data.GitCredentials.IsUnknown() && data.GitCredentials.ValueString() != "") {
+		resp.Diagnostics.AddError("Private Git repositories are not supported", "The DanubeData API currently accepts Git credentials without saving them. Use a public Git repository until the API persists credentials.")
 		return
 	}
 
@@ -258,6 +278,9 @@ func (r *ServerlessResource) Create(ctx context.Context, req resource.CreateRequ
 		Port:            int(data.Port.ValueInt64()),
 		MinScale:        int(data.MinScale.ValueInt64()),
 		MaxScale:        int(data.MaxScale.ValueInt64()),
+	}
+	if createReq.DeploymentType == "git_repository" {
+		createReq.GitAuthType = "none"
 	}
 
 	if !data.Image.IsNull() && !data.Image.IsUnknown() {

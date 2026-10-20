@@ -326,6 +326,12 @@ func (r *FirewallResource) Update(ctx context.Context, req resource.UpdateReques
 		resp.Diagnostics.AddError("Failed to update firewall", err.Error())
 		return
 	}
+	if rulesChanged {
+		if err := r.client.DeployFirewall(ctx, data.ID.ValueString()); err != nil {
+			resp.Diagnostics.AddError("Firewall rules saved but deployment was not queued", fmt.Sprintf("%s. Retry POST /api/v1/firewalls/%s/deploy or use the console Deploy action; a later Terraform apply may not retry because the API already has the new rules.", err, data.ID.ValueString()))
+			return
+		}
+	}
 
 	r.mapFirewallToState(ctx, firewall, &data, &resp.Diagnostics)
 
@@ -403,6 +409,10 @@ func firewallRulesToRequest(ctx context.Context, value types.List, prior ...type
 	}
 	result := make([]client.CreateFirewallRuleRequest, len(rules))
 	for i, rule := range rules {
+		if rule.Port.IsUnknown() || rule.PortRangeStart.IsUnknown() || rule.PortRangeEnd.IsUnknown() {
+			diags.AddError("Unresolved firewall rule port", "A rule has an unknown port or port range. Resolve it before updating the firewall so the rule cannot apply to every port.")
+			continue
+		}
 		match := -1
 		if !rule.Name.IsNull() && !rule.Name.IsUnknown() {
 			for j, old := range previous {
@@ -466,6 +476,10 @@ func firewallRulesToRequest(ctx context.Context, value types.List, prior ...type
 			}
 			diags.Append(rule.SourceInstanceIDs.ElementsAs(ctx, &sources, false)...)
 			for _, source := range sources {
+				if source.ID.IsNull() || source.ID.IsUnknown() {
+					diags.AddError("Unresolved firewall source", "A source instance has no resolvable ID. Resolve or remove it before updating rules.")
+					continue
+				}
 				if source.Type.IsNull() || source.Type.IsUnknown() {
 					diags.AddError("Unresolved firewall source", "A source instance has no resolvable type. Remove it explicitly before updating rules.")
 					continue

@@ -159,5 +159,6 @@ terraform import danubedata_database.example 9f8c2d14-3b7a-4e51-9c6d-2a1f8e0b7c3
   `automated_snapshots_enabled`; Terraform retains their configured values and
   cannot detect changes made outside Terraform. Imported instances have these
   fields unset until you configure them.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

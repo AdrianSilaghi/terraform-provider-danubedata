@@ -170,7 +170,8 @@ func (c *Client) ListCaches(ctx context.Context) ([]CacheInstance, error) {
 
 // WaitForCacheStatus waits for a cache instance to reach a target status
 func (c *Client) WaitForCacheStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -195,10 +196,6 @@ func (c *Client) WaitForCacheStatus(ctx context.Context, id string, targetStatus
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for cache %s to reach status %s", id, targetStatus)
-			}
-
 			instance, err := c.GetCache(ctx, id)
 			if err != nil {
 				if IsNotFound(err) && targetStatus == "deleted" {
@@ -221,18 +218,18 @@ func (c *Client) WaitForCacheStatus(ctx context.Context, id string, targetStatus
 
 // WaitForCacheDeletion waits for a cache instance to be deleted
 func (c *Client) WaitForCacheDeletion(ctx context.Context, id string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	tick := time.After(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for cache %s to be deleted", id)
-			}
+		case <-tick:
+			tick = ticker.C
 
 			_, err := c.GetCache(ctx, id)
 			if err != nil {
