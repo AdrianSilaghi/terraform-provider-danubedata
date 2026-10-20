@@ -36,7 +36,7 @@ jobs:
     env:
       # Versions pinned to what .github/Dockerfile installed, so the port does
       # not quietly change the toolchain that produces published binaries.
-      GO_VERSION: '1.24'
+      GO_VERSION: '1.26.10'
       GORELEASER_VERSION: 'v2.5.1'
 
     steps:
