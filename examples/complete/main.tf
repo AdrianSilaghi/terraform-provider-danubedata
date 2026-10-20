@@ -25,6 +25,7 @@ variable "root_password" {
 
 # VPS Instance
 resource "danubedata_vps" "web" {
+  cpu_platform     = "amd"
   name             = "${var.environment}-web-server"
   resource_profile = "small_shared"
   image            = "ubuntu-24.04"

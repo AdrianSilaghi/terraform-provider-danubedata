@@ -36,15 +36,11 @@ resource "danubedata_static_site_domain" "aliases" {
 }
 ```
 
-### Surfacing the Record to Add
+### Surfacing the DNS Instructions
 
 ```hcl
-output "verification_record" {
-  value = {
-    type  = danubedata_static_site_domain.www.dns_instructions.record_type
-    name  = danubedata_static_site_domain.www.dns_instructions.record_name
-    value = danubedata_static_site_domain.www.dns_instructions.record_value
-  }
+output "verification_instructions" {
+  value = danubedata_static_site_domain.www.dns_instructions
 }
 ```
 
@@ -52,9 +48,8 @@ output "verification_record" {
 
 1. Apply the configuration. The domain is attached with
    `verification_status = "pending"`.
-2. Read `dns_instructions` and create the record it describes at your DNS
-   provider. The record type is whatever `dns_instructions.record_type`
-   reports — do not hardcode an assumption about it.
+2. Read `dns_instructions` and create the DNS record it describes at your DNS
+   provider.
 3. Once the record has propagated, trigger verification:
 
    ```bash
@@ -89,12 +84,7 @@ In addition to the arguments above, the following are exported:
 * `deployment_status` - Status of routing the domain to the site's active
   deployment (`pending`, `deploying`, `active`, `failed`).
 * `is_primary` - Whether this is the primary domain for the site.
-* `dns_instructions` - The DNS record to add for ownership verification, an
-  object with:
-  * `record_type` - DNS record type.
-  * `record_name` - DNS record name.
-  * `record_value` - DNS record value.
-  * `instructions` - Human-readable instructions for configuring the record.
+* `dns_instructions` - Human-readable DNS ownership verification instructions.
 * `created_at` - Timestamp.
 
 ## Import

@@ -26,6 +26,7 @@ type CacheInstance struct {
 	Version            string        `json:"version"`
 	Provider           CacheProvider `json:"provider"`
 	Datacenter         string        `json:"datacenter"`
+	NetworkTier        string        `json:"network_tier"`
 	Endpoint           *string       `json:"endpoint"`
 	Port               *int          `json:"port"`
 	ParameterGroupID   *string       `json:"parameter_group_id"`
@@ -50,19 +51,23 @@ type Provider struct {
 
 // CreateCacheRequest represents a request to create a cache instance
 type CreateCacheRequest struct {
-	Name             string  `json:"name"`
-	Provider         string  `json:"provider"` // redis, valkey, dragonfly
-	Version          string  `json:"version,omitempty"`
-	Datacenter       string  `json:"datacenter"`
-	ResourceProfile  string  `json:"resource_profile"`
-	ParameterGroupID *string `json:"parameter_group_id,omitempty"`
+	Name             string            `json:"name"`
+	Provider         string            `json:"provider"` // redis, valkey, dragonfly
+	Version          string            `json:"version,omitempty"`
+	Datacenter       string            `json:"datacenter"`
+	NetworkTier      string            `json:"network_tier,omitempty"`
+	ResourceProfile  string            `json:"resource_profile"`
+	ParameterGroupID *int              `json:"parameter_group_id,omitempty"`
+	Configuration    map[string]string `json:"configuration,omitempty"`
 }
 
 // UpdateCacheRequest represents a request to update a cache instance
 type UpdateCacheRequest struct {
-	Name             string  `json:"name,omitempty"`
-	ResourceProfile  string  `json:"resource_profile,omitempty"`
-	ParameterGroupID *string `json:"parameter_group_id,omitempty"`
+	Name                      string             `json:"name,omitempty"`
+	ResourceProfile           string             `json:"resource_profile,omitempty"`
+	ParameterGroupID          **int              `json:"parameter_group_id,omitempty"`
+	Configuration             *map[string]string `json:"configuration,omitempty"`
+	AutomatedSnapshotsEnabled *bool              `json:"automated_snapshots_enabled,omitempty"`
 }
 
 type createCacheResponse struct {

@@ -53,10 +53,9 @@ fmt:
 lint:
 	golangci-lint run
 
-## Generate documentation
+## Show documentation editing instructions
 docs:
-	$(GO) generate ./...
-	tfplugindocs generate
+	@echo "Documentation is maintained by hand in docs/. Update matching resource/data source pages and examples when changing a schema."
 
 ## Clean build artifacts
 clean:

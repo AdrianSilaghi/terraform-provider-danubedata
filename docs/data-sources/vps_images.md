@@ -40,6 +40,7 @@ resource "danubedata_vps" "server" {
   name        = "web-server"
   image       = local.latest_ubuntu.id
   datacenter  = "fsn1"
+  cpu_platform = "amd"
   auth_method = "ssh_key"
   ssh_key_id  = danubedata_ssh_key.main.id
 }

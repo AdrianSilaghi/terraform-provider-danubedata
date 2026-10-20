@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -14,9 +15,32 @@ type VpsSnapshot struct {
 	Description   string  `json:"description"`
 	Status        string  `json:"status"`
 	SizeGB        float64 `json:"size_gb"`
+	SizeKnown     bool    `json:"-"`
 	VpsInstanceID string  `json:"vps_instance_id"`
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
+	SizeBytes     *int64  `json:"size_bytes"`
+	SizeBasis     *string `json:"size_basis"`
+	ExpiresAt     *string `json:"expires_at"`
+}
+
+func (s *VpsSnapshot) UnmarshalJSON(data []byte) error {
+	type raw VpsSnapshot
+	wire := struct {
+		*raw
+		Size json.Number `json:"size_gb"`
+	}{raw: (*raw)(s)}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	s.SizeKnown = wire.Size != ""
+	if wire.Size == "" {
+		s.SizeGB = 0
+		return nil
+	}
+	var err error
+	s.SizeGB, err = wire.Size.Float64()
+	return err
 }
 
 // CacheSnapshot represents a cache snapshot from the API
@@ -26,9 +50,31 @@ type CacheSnapshot struct {
 	Description     string  `json:"description"`
 	Status          string  `json:"status"`
 	SizeMB          float64 `json:"size_mb"`
+	SizeKnown       bool    `json:"-"`
 	CacheInstanceID string  `json:"cache_instance_id"`
 	CreatedAt       string  `json:"created_at"`
 	UpdatedAt       string  `json:"updated_at"`
+	SizeBytes       *int64  `json:"size_bytes"`
+	SizeBasis       *string `json:"size_basis"`
+}
+
+func (s *CacheSnapshot) UnmarshalJSON(data []byte) error {
+	type raw CacheSnapshot
+	wire := struct {
+		*raw
+		Size json.Number `json:"size_mb"`
+	}{raw: (*raw)(s)}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	s.SizeKnown = wire.Size != ""
+	if wire.Size == "" {
+		s.SizeMB = 0
+		return nil
+	}
+	var err error
+	s.SizeMB, err = wire.Size.Float64()
+	return err
 }
 
 // DatabaseSnapshot represents a database snapshot from the API
@@ -38,9 +84,31 @@ type DatabaseSnapshot struct {
 	Description        string  `json:"description"`
 	Status             string  `json:"status"`
 	SizeGB             float64 `json:"size_gb"`
+	SizeKnown          bool    `json:"-"`
 	DatabaseInstanceID string  `json:"database_instance_id"`
 	CreatedAt          string  `json:"created_at"`
 	UpdatedAt          string  `json:"updated_at"`
+	SizeBytes          *int64  `json:"size_bytes"`
+	SizeBasis          *string `json:"size_basis"`
+}
+
+func (s *DatabaseSnapshot) UnmarshalJSON(data []byte) error {
+	type raw DatabaseSnapshot
+	wire := struct {
+		*raw
+		Size json.Number `json:"size_gb"`
+	}{raw: (*raw)(s)}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	s.SizeKnown = wire.Size != ""
+	if wire.Size == "" {
+		s.SizeGB = 0
+		return nil
+	}
+	var err error
+	s.SizeGB, err = wire.Size.Float64()
+	return err
 }
 
 // CreateVpsSnapshotRequest represents a request to create a VPS snapshot

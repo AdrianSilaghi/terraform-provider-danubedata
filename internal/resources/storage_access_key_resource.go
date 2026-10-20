@@ -6,10 +6,13 @@ import (
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -27,14 +30,17 @@ type StorageAccessKeyResource struct {
 }
 
 type StorageAccessKeyResourceModel struct {
-	ID              types.String `tfsdk:"id"`
-	Name            types.String `tfsdk:"name"`
-	AccessKeyID     types.String `tfsdk:"access_key_id"`
-	SecretAccessKey types.String `tfsdk:"secret_access_key"`
-	Status          types.String `tfsdk:"status"`
-	ExpiresAt       types.String `tfsdk:"expires_at"`
-	CreatedAt       types.String `tfsdk:"created_at"`
-	UpdatedAt       types.String `tfsdk:"updated_at"`
+	ID                types.String `tfsdk:"id"`
+	Name              types.String `tfsdk:"name"`
+	AccessKeyID       types.String `tfsdk:"access_key_id"`
+	SecretAccessKey   types.String `tfsdk:"secret_access_key"`
+	ARN               types.String `tfsdk:"arn"`
+	Scope             types.String `tfsdk:"scope"`
+	BucketPermissions types.Map    `tfsdk:"bucket_permissions"`
+	Status            types.String `tfsdk:"status"`
+	ExpiresAt         types.String `tfsdk:"expires_at"`
+	CreatedAt         types.String `tfsdk:"created_at"`
+	UpdatedAt         types.String `tfsdk:"updated_at"`
 }
 
 func NewStorageAccessKeyResource() resource.Resource {
@@ -63,7 +69,7 @@ func (r *StorageAccessKeyResource) Schema(ctx context.Context, req resource.Sche
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.LengthBetween(1, 255),
+					stringvalidator.LengthBetween(1, 32),
 				},
 			},
 			"access_key_id": schema.StringAttribute{
@@ -84,6 +90,18 @@ func (r *StorageAccessKeyResource) Schema(ctx context.Context, req resource.Sche
 			"status": schema.StringAttribute{
 				Description: "Current status of the access key (active, revoked).",
 				Computed:    true,
+			},
+			"arn": schema.StringAttribute{Description: "S3 principal ARN, when available.", Computed: true},
+			"scope": schema.StringAttribute{
+				Description: "Where the key reaches: team (all buckets), buckets (only bucket_permissions), or none (bucket policies only).",
+				Optional:    true, Computed: true, Default: stringdefault.StaticString("team"),
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators:    []validator.String{stringvalidator.OneOf("team", "buckets", "none")},
+			},
+			"bucket_permissions": schema.MapAttribute{
+				Description: "Bucket ID to permission level (read, readwrite, or full). Required when scope is buckets; empty for team or none.",
+				Optional:    true, Computed: true, ElementType: types.StringType,
+				PlanModifiers: []planmodifier.Map{mapplanmodifier.RequiresReplace()},
 			},
 			"expires_at": schema.StringAttribute{
 				Description: "Optional expiration date for the access key (ISO 8601 format).",
@@ -130,7 +148,30 @@ func (r *StorageAccessKeyResource) Create(ctx context.Context, req resource.Crea
 
 	// Build create request
 	createReq := client.CreateStorageAccessKeyRequest{
-		Name: data.Name.ValueString(),
+		Name:  data.Name.ValueString(),
+		Scope: data.Scope.ValueString(),
+	}
+	permissions := map[string]string{}
+	if !data.BucketPermissions.IsNull() && !data.BucketPermissions.IsUnknown() {
+		resp.Diagnostics.Append(data.BucketPermissions.ElementsAs(ctx, &permissions, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	if createReq.Scope == "buckets" && (len(permissions) == 0 || len(permissions) > 50) {
+		resp.Diagnostics.AddError("Invalid bucket permissions", "Scope buckets requires 1 to 50 bucket permissions.")
+		return
+	}
+	if createReq.Scope != "buckets" && len(permissions) != 0 {
+		resp.Diagnostics.AddError("Invalid bucket permissions", "Bucket permissions are only valid with scope buckets.")
+		return
+	}
+	for bucketID, level := range permissions {
+		if bucketID == "" || (level != "read" && level != "readwrite" && level != "full") {
+			resp.Diagnostics.AddError("Invalid bucket permissions", "Each bucket ID must be nonempty and each level must be read, readwrite, or full.")
+			return
+		}
+		createReq.BucketPermissions = append(createReq.BucketPermissions, client.StorageKeyBucketPermission{BucketID: bucketID, Level: level})
 	}
 
 	if !data.ExpiresAt.IsNull() && !data.ExpiresAt.IsUnknown() {
@@ -148,11 +189,41 @@ func (r *StorageAccessKeyResource) Create(ctx context.Context, req resource.Crea
 		resp.Diagnostics.AddError("Failed to create storage access key", err.Error())
 		return
 	}
+	if createResp.ID == "" || createResp.AccessKeyID == "" || createResp.SecretAccessKey == "" {
+		detail := "The API did not return the key ID and both credentials."
+		if createResp.ID != "" {
+			if revokeErr := r.client.DeleteStorageAccessKey(ctx, createResp.ID); revokeErr != nil {
+				detail += fmt.Sprintf(" Revoke key %s manually: %s", createResp.ID, revokeErr)
+			} else {
+				detail += " The incomplete key was revoked."
+			}
+		}
+		resp.Diagnostics.AddError("Incomplete access key response", detail)
+		return
+	}
+	if createResp.Scope != createReq.Scope || !sameBucketPermissions(permissions, createResp.BucketPermissions) {
+		revokeErr := r.client.DeleteStorageAccessKey(ctx, createResp.ID)
+		if revokeErr != nil {
+			resp.Diagnostics.AddError("Storage access key scope was not applied", fmt.Sprintf("Created key %s with a different scope or permissions; automatic revocation failed: %s. Revoke it manually.", createResp.ID, revokeErr))
+		} else {
+			resp.Diagnostics.AddError("Storage access key scope was not applied", fmt.Sprintf("Created key %s with a different scope or permissions and revoked it.", createResp.ID))
+		}
+		return
+	}
 
 	// Map the response to state
 	data.ID = types.StringValue(createResp.ID)
 	data.AccessKeyID = types.StringValue(createResp.AccessKeyID)
 	data.SecretAccessKey = types.StringValue(createResp.SecretAccessKey)
+	if createResp.ARN != nil {
+		data.ARN = types.StringValue(*createResp.ARN)
+	} else {
+		data.ARN = types.StringNull()
+	}
+	resp.Diagnostics.Append(setBucketPermissions(ctx, &data, createResp.BucketPermissions)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	data.Status = types.StringValue("active") // Newly created keys are always active
 
 	if createResp.ExpiresAt != nil {
@@ -200,11 +271,25 @@ func (r *StorageAccessKeyResource) Read(ctx context.Context, req resource.ReadRe
 		resp.Diagnostics.AddError("Failed to read storage access key", err.Error())
 		return
 	}
+	if accessKey.Status == "revoked" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 
 	// Update state from API (but preserve secret key from state since API doesn't return it)
 	data.Name = types.StringValue(accessKey.Name)
 	data.AccessKeyID = types.StringValue(accessKey.AccessKeyID)
 	data.Status = types.StringValue(accessKey.Status)
+	data.Scope = types.StringValue(accessKey.Scope)
+	if accessKey.ARN != nil {
+		data.ARN = types.StringValue(*accessKey.ARN)
+	} else {
+		data.ARN = types.StringNull()
+	}
+	resp.Diagnostics.Append(setBucketPermissions(ctx, &data, accessKey.BucketPermissions)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	data.CreatedAt = types.StringValue(accessKey.CreatedAt)
 	data.UpdatedAt = types.StringValue(accessKey.UpdatedAt)
 
@@ -215,6 +300,28 @@ func (r *StorageAccessKeyResource) Read(ctx context.Context, req resource.ReadRe
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+func sameBucketPermissions(want map[string]string, got []client.StorageKeyBucketPermission) bool {
+	if len(want) != len(got) {
+		return false
+	}
+	for _, permission := range got {
+		if want[permission.BucketID] != permission.Level {
+			return false
+		}
+	}
+	return true
+}
+
+func setBucketPermissions(ctx context.Context, data *StorageAccessKeyResourceModel, permissions []client.StorageKeyBucketPermission) diag.Diagnostics {
+	values := make(map[string]string, len(permissions))
+	for _, permission := range permissions {
+		values[permission.BucketID] = permission.Level
+	}
+	value, diags := types.MapValueFrom(ctx, types.StringType, values)
+	data.BucketPermissions = value
+	return diags
 }
 
 func (r *StorageAccessKeyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -242,6 +349,9 @@ func (r *StorageAccessKeyResource) Delete(ctx context.Context, req resource.Dele
 	err := r.client.DeleteStorageAccessKey(ctx, accessKeyID)
 	if err != nil {
 		if client.IsNotFound(err) {
+			return
+		}
+		if apiErr, ok := err.(*client.APIError); ok && apiErr.StatusCode == 422 && apiErr.Message == "Access key is already revoked" {
 			return
 		}
 		resp.Diagnostics.AddError("Failed to delete storage access key", err.Error())

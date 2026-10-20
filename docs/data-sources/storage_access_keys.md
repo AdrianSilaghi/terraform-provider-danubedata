@@ -61,6 +61,9 @@ This data source has no arguments.
   * `access_key_id` - The S3 access key ID for authentication.
   * `status` - Current status (`active`, `revoked`, `error`).
   * `access_type` - `restricted` if the key carries per-bucket permissions, otherwise `full`.
+  * `scope` - `team`, `buckets`, or `none`.
+  * `bucket_permissions` - Map of bucket IDs to permission levels for bucket-scoped keys.
+  * `arn` - S3 principal ARN, when available.
   * `is_prefix_scoped` - Whether the key is scoped to specific bucket prefixes.
   * `expires_at` - Expiration timestamp. Null if the key does not expire.
   * `last_used_at` - Timestamp when the key was last used. Null if never used.

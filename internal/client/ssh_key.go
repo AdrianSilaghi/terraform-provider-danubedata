@@ -11,6 +11,7 @@ type SshKey struct {
 	Name        string `json:"name"`
 	Fingerprint string `json:"fingerprint"`
 	PublicKey   string `json:"public_key"`
+	IsDefault   bool   `json:"is_default"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
 	UserID      int    `json:"user_id"`
@@ -20,6 +21,7 @@ type SshKey struct {
 type CreateSshKeyRequest struct {
 	Name      string `json:"name"`
 	PublicKey string `json:"public_key"`
+	IsDefault bool   `json:"is_default"`
 }
 
 type createSshKeyResponse struct {

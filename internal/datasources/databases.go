@@ -29,6 +29,7 @@ type DatabaseInstanceModel struct {
 	Version         types.String  `tfsdk:"version"`
 	DatabaseName    types.String  `tfsdk:"database_name"`
 	Datacenter      types.String  `tfsdk:"datacenter"`
+	NetworkTier     types.String  `tfsdk:"network_tier"`
 	ResourceProfile types.String  `tfsdk:"resource_profile"`
 	CPUCores        types.Int64   `tfsdk:"cpu_cores"`
 	MemorySizeMB    types.Int64   `tfsdk:"memory_size_mb"`
@@ -85,6 +86,7 @@ func (d *DatabasesDataSource) Schema(ctx context.Context, req datasource.SchemaR
 							Description: "Datacenter location.",
 							Computed:    true,
 						},
+						"network_tier": schema.StringAttribute{Computed: true, Description: "Requested network tier (standard or 10g)."},
 						"resource_profile": schema.StringAttribute{
 							Description: "Resource profile (predefined CPU/RAM/Storage configuration).",
 							Computed:    true,
@@ -171,6 +173,7 @@ func (d *DatabasesDataSource) Read(ctx context.Context, req datasource.ReadReque
 			Engine:          types.StringValue(inst.Engine.Name),
 			Version:         types.StringValue(inst.Version),
 			Datacenter:      types.StringValue(inst.Datacenter),
+			NetworkTier:     types.StringValue(inst.NetworkTier),
 			ResourceProfile: types.StringValue(inst.ResourceProfile),
 			CPUCores:        types.Int64Value(int64(inst.CPUCores)),
 			MemorySizeMB:    types.Int64Value(int64(inst.MemorySizeMB)),

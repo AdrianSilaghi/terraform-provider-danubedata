@@ -29,6 +29,8 @@ type DatabaseSnapshotModel struct {
 	Status             types.String  `tfsdk:"status"`
 	DatabaseInstanceID types.String  `tfsdk:"database_instance_id"`
 	SizeGB             types.Float64 `tfsdk:"size_gb"`
+	SizeBytes          types.Int64   `tfsdk:"size_bytes"`
+	SizeBasis          types.String  `tfsdk:"size_basis"`
 	CreatedAt          types.String  `tfsdk:"created_at"`
 }
 
@@ -55,6 +57,8 @@ func (d *DatabaseSnapshotsDataSource) Schema(ctx context.Context, req datasource
 						"status":               schema.StringAttribute{Computed: true},
 						"database_instance_id": schema.StringAttribute{Computed: true},
 						"size_gb":              schema.Float64Attribute{Computed: true},
+						"size_bytes":           schema.Int64Attribute{Computed: true},
+						"size_basis":           schema.StringAttribute{Computed: true},
 						"created_at":           schema.StringAttribute{Computed: true},
 					},
 				},
@@ -100,8 +104,19 @@ func (d *DatabaseSnapshotsDataSource) Read(ctx context.Context, req datasource.R
 			Description:        types.StringValue(s.Description),
 			Status:             types.StringValue(s.Status),
 			DatabaseInstanceID: types.StringValue(s.DatabaseInstanceID),
-			SizeGB:             types.Float64Value(s.SizeGB),
+			SizeGB:             types.Float64Null(),
+			SizeBytes:          types.Int64Null(),
+			SizeBasis:          types.StringNull(),
 			CreatedAt:          types.StringValue(s.CreatedAt),
+		}
+		if s.SizeKnown {
+			data.Snapshots[i].SizeGB = types.Float64Value(s.SizeGB)
+		}
+		if s.SizeBytes != nil {
+			data.Snapshots[i].SizeBytes = types.Int64Value(*s.SizeBytes)
+		}
+		if s.SizeBasis != nil {
+			data.Snapshots[i].SizeBasis = types.StringValue(*s.SizeBasis)
 		}
 	}
 

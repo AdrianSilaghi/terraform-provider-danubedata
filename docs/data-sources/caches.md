@@ -59,6 +59,8 @@ This data source has no arguments.
   * `status` - Current status (`pending`, `provisioning`, `running`, `stopped`, `restoring`, `updating`, `error`, `destroying`).
   * `cache_provider` - Cache provider (`redis`, `valkey`, `dragonfly`).
   * `version` - Cache version.
+  * `datacenter` - Datacenter location.
+  * `network_tier` - Requested network tier (`standard` or `10g`).
   * `resource_profile` - Resource profile slug selecting CPU and memory (`micro`, `small`, `medium`, `large`).
   * `cpu_cores` - Number of CPU cores. Derived from `resource_profile`.
   * `memory_size_mb` - Memory size in MB. Derived from `resource_profile`.

@@ -17,6 +17,7 @@ resource "danubedata_vps" "web" {
   image            = "ubuntu-24.04"
   datacenter       = "fsn1"
   resource_profile = "nano_shared"
+  cpu_platform     = "amd"
   auth_method      = "ssh_key"
   ssh_key_id       = danubedata_ssh_key.main.id
 }
@@ -38,6 +39,7 @@ resource "danubedata_vps" "app" {
   datacenter          = "fsn1"
   resource_profile    = "small"
   cpu_allocation_type = "dedicated"
+  cpu_platform       = "intel"
   auth_method         = "ssh_key"
   ssh_key_id          = danubedata_ssh_key.main.id
 }
@@ -51,6 +53,7 @@ resource "danubedata_vps" "dev" {
   image       = "ubuntu-24.04"
   datacenter  = "fsn1"
   auth_method = "password"
+  cpu_platform = "amd"
   password    = var.server_password # at least 12 characters
 }
 ```
@@ -63,6 +66,7 @@ resource "danubedata_vps" "edge" {
   image         = "ubuntu-24.04"
   datacenter    = "fsn1"
   network_stack = "ipv6_only"
+  cpu_platform = "amd"
   auth_method   = "ssh_key"
   ssh_key_id    = danubedata_ssh_key.main.id
 }
@@ -93,13 +97,14 @@ particular teams, are rejected at apply time.
 ### Required
 
 * `name` - Name of the VPS instance. Lowercase alphanumeric and hyphens only,
-  starting and ending with an alphanumeric character, 1-255 characters.
+  starting and ending with an alphanumeric character, 2-39 characters.
   Changing this forces a new resource.
 * `image` - Operating system image, e.g. `ubuntu-24.04` or `debian-12`. Use the
   `danubedata_vps_images` data source for the current list. Changing this
   forces a new resource.
 * `datacenter` - Datacenter location. Only `fsn1` is accepted. Changing this
   forces a new resource.
+* `cpu_platform` - Processor platform, `amd` or `intel`; the API has no default. Intel supports dedicated plans only. Changing this replaces the VPS.
 * `auth_method` - Authentication method. One of `ssh_key`, `password`. Changing
   this forces a new resource.
 
@@ -108,7 +113,7 @@ particular teams, are rejected at apply time.
 * `resource_profile` - Plan slug; see [Resource Profiles](#resource-profiles).
   Defaults to `nano_shared`. Changing this resizes the instance in place.
 * `cpu_allocation_type` - CPU allocation type. One of `shared`, `dedicated`.
-  Defaults to `shared`. Changing this is applied in place.
+  Defaults to the selected plan's type. When set, it must match the plan type. Changing this is applied in place.
 * `ssh_key_id` - ID of the SSH key to install. Required when `auth_method` is
   `ssh_key`. Changing this forces a new resource.
 * `password` - Root password. Required when `auth_method` is `password`, and
@@ -116,6 +121,8 @@ particular teams, are rejected at apply time.
   unset — the API generates a password after provisioning and the provider
   reads it back into state. Changing a value you configured forces a new
   resource. Sensitive.
+* `network_tier` - `standard` (default) or `10g`. The API validates 10 Gb eligibility. Changing this replaces the VPS.
+* `primary_ipv4_floating_ip_id` / `primary_ipv6_floating_ip_id` - Existing reserved Floating IP IDs to use as primary addresses. Changing either replaces the VPS.
 * `network_stack` - Network stack. One of `ipv4_only`, `ipv6_only`,
   `dual_stack`. Defaults to `dual_stack`. Changing a value you configured
   forces a new resource.
@@ -133,6 +140,10 @@ particular teams, are rejected at apply time.
 In addition to the arguments above, the following are exported:
 
 * `id` - The VPS instance ID.
+* `status_label` - Human-readable status label.
+* `vnc_access_url` - VNC access URL when available.
+* `team_id` / `user_id` - Owning project and user IDs.
+* `can_be_started` / `can_be_stopped` / `can_be_rebooted` / `can_be_destroyed` - Current allowed actions.
 * `status` - Current status (`pending`, `provisioning`, `running`, `stopped`,
   `error`).
 * `cpu_cores` - vCPU count, derived from `resource_profile`.

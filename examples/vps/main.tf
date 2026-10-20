@@ -25,6 +25,7 @@ output "available_images" {
 
 # Create a VPS instance
 resource "danubedata_vps" "example" {
+  cpu_platform     = "amd"
   name             = "terraform-test"
   resource_profile = "nano_shared"
   image            = "ubuntu-24.04"

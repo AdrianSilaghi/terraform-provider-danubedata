@@ -8,11 +8,13 @@ import (
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -34,6 +36,9 @@ type VpsSnapshotResourceModel struct {
 	VpsInstanceID types.String   `tfsdk:"vps_instance_id"`
 	Status        types.String   `tfsdk:"status"`
 	SizeGB        types.Float64  `tfsdk:"size_gb"`
+	SizeBytes     types.Int64    `tfsdk:"size_bytes"`
+	SizeBasis     types.String   `tfsdk:"size_basis"`
+	ExpiresAt     types.String   `tfsdk:"expires_at"`
 	CreatedAt     types.String   `tfsdk:"created_at"`
 	UpdatedAt     types.String   `tfsdk:"updated_at"`
 	Timeouts      timeouts.Value `tfsdk:"timeouts"`
@@ -64,6 +69,7 @@ func (r *VpsSnapshotResource) Schema(ctx context.Context, req resource.SchemaReq
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{stringvalidator.LengthBetween(1, 255)},
 			},
 			"description": schema.StringAttribute{
 				Description: "Description of the snapshot.",
@@ -71,6 +77,7 @@ func (r *VpsSnapshotResource) Schema(ctx context.Context, req resource.SchemaReq
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{stringvalidator.LengthAtMost(500)},
 			},
 			"vps_instance_id": schema.StringAttribute{
 				Description: "ID of the VPS instance to snapshot.",
@@ -87,6 +94,9 @@ func (r *VpsSnapshotResource) Schema(ctx context.Context, req resource.SchemaReq
 				Description: "Size of the snapshot in GB.",
 				Computed:    true,
 			},
+			"size_bytes": schema.Int64Attribute{Description: "Snapshot size in bytes when measured.", Computed: true},
+			"size_basis": schema.StringAttribute{Description: "How the snapshot size was measured (stored, uploaded, or captured).", Computed: true},
+			"expires_at": schema.StringAttribute{Description: "Automatic deletion time, when applicable.", Computed: true},
 			"created_at": schema.StringAttribute{
 				Description: "Timestamp when the snapshot was created.",
 				Computed:    true,
@@ -156,6 +166,10 @@ func (r *VpsSnapshotResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	data.ID = types.StringValue(strconv.FormatInt(snapshot.ID, 10))
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), data.ID)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	tflog.Info(ctx, "VPS snapshot created, waiting for completion", map[string]interface{}{
 		"id":   snapshot.ID,
@@ -213,11 +227,13 @@ func (r *VpsSnapshotResource) Read(ctx context.Context, req resource.ReadRequest
 }
 
 func (r *VpsSnapshotResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Snapshots are immutable; all user-visible fields require replacement. Preserve
-	// existing state rather than writing the plan (which may contain Unknown computed
-	// fields when only the timeouts block changes).
+	// Preserve computed snapshot values while accepting local timeout changes.
 	var data VpsSnapshotResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("timeouts"), &data.Timeouts)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -268,10 +284,33 @@ func (r *VpsSnapshotResource) ImportState(ctx context.Context, req resource.Impo
 func (r *VpsSnapshotResource) mapSnapshotToState(snapshot *client.VpsSnapshot, data *VpsSnapshotResourceModel) {
 	data.ID = types.StringValue(strconv.FormatInt(snapshot.ID, 10))
 	data.Name = types.StringValue(snapshot.Name)
-	data.Description = types.StringValue(snapshot.Description)
+	if snapshot.Description == "" && data.Description.IsNull() {
+		data.Description = types.StringNull()
+	} else {
+		data.Description = types.StringValue(snapshot.Description)
+	}
 	data.VpsInstanceID = types.StringValue(snapshot.VpsInstanceID)
 	data.Status = types.StringValue(snapshot.Status)
-	data.SizeGB = types.Float64Value(snapshot.SizeGB)
+	if snapshot.SizeKnown {
+		data.SizeGB = types.Float64Value(snapshot.SizeGB)
+	} else {
+		data.SizeGB = types.Float64Null()
+	}
+	if snapshot.SizeBytes != nil {
+		data.SizeBytes = types.Int64Value(*snapshot.SizeBytes)
+	} else {
+		data.SizeBytes = types.Int64Null()
+	}
+	if snapshot.SizeBasis != nil {
+		data.SizeBasis = types.StringValue(*snapshot.SizeBasis)
+	} else {
+		data.SizeBasis = types.StringNull()
+	}
+	if snapshot.ExpiresAt != nil {
+		data.ExpiresAt = types.StringValue(*snapshot.ExpiresAt)
+	} else {
+		data.ExpiresAt = types.StringNull()
+	}
 	data.CreatedAt = types.StringValue(snapshot.CreatedAt)
 	data.UpdatedAt = types.StringValue(snapshot.UpdatedAt)
 }

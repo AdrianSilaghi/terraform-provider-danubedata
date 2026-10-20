@@ -23,6 +23,9 @@ func TestClient_CreateStaticSite(t *testing.T) {
 		if req.Name != "my-site" {
 			t.Errorf("Name = %v, want my-site", req.Name)
 		}
+		if req.Plan != nil {
+			t.Errorf("obsolete site-level plan was sent: %q", *req.Plan)
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -41,8 +44,7 @@ func TestClient_CreateStaticSite(t *testing.T) {
 	defer server.Close()
 
 	c := newTestClient(server)
-	plan := "free"
-	site, err := c.CreateStaticSite(context.Background(), CreateStaticSiteRequest{Name: "my-site", Plan: &plan})
+	site, err := c.CreateStaticSite(context.Background(), CreateStaticSiteRequest{Name: "my-site"})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -123,12 +125,7 @@ func TestClient_AddStaticSiteDomain(t *testing.T) {
 				TLSStatus:          "pending",
 				DeploymentStatus:   "pending",
 				IsPrimary:          false,
-				DNSInstructions: StaticSiteDomainDNSInstructions{
-					RecordType:   "TXT",
-					RecordName:   "_danubedata-verify.www.example.com",
-					RecordValue:  "abc123token",
-					Instructions: "Add a TXT record with the name '_danubedata-verify.www.example.com' and value 'abc123token' to your DNS provider.",
-				},
+				DNSInstructions:    "Add a TXT record with the name '_danubedata-verify.www.example.com' and value 'abc123token' to your DNS provider.",
 			},
 		})
 	})
@@ -145,8 +142,22 @@ func TestClient_AddStaticSiteDomain(t *testing.T) {
 	if d.Domain != "www.example.com" {
 		t.Errorf("Domain = %v, want www.example.com", d.Domain)
 	}
-	if d.DNSInstructions.RecordType != "TXT" {
-		t.Errorf("DNSInstructions.RecordType = %v, want TXT", d.DNSInstructions.RecordType)
+	if d.DNSInstructions == "" {
+		t.Error("DNS instructions missing")
+	}
+}
+
+func TestClient_StaticSiteDomainDNSInstructionsIsString(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[{"id":"domain-1","domain":"www.example.com","dns_instructions":"Add the TXT record shown in the dashboard."}]}`))
+	})
+	defer server.Close()
+	domains, err := newTestClient(server).ListStaticSiteDomains(context.Background(), "site-123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(domains) != 1 || domains[0].DNSInstructions != "Add the TXT record shown in the dashboard." {
+		t.Fatalf("DNS instructions = %#v", domains)
 	}
 }
 

@@ -94,6 +94,52 @@ func TestClient_CreateDatabase(t *testing.T) {
 	}
 }
 
+func TestClient_UpdateDatabase_ClearsOptionalSettings(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		for field, want := range map[string]string{
+			"parameter_group_id":          "null",
+			"configuration":               "{}",
+			"automated_snapshots_enabled": "false",
+		} {
+			if string(body[field]) != want {
+				t.Errorf("%s = %s, want %s", field, body[field], want)
+			}
+		}
+		_ = json.NewEncoder(w).Encode(updateDatabaseResponse{})
+	})
+	defer server.Close()
+
+	empty := map[string]string{}
+	disabled := false
+	if _, err := newTestClient(server).UpdateDatabase(context.Background(), "db-1", UpdateDatabaseRequest{
+		ParameterGroupID: new(*int), Configuration: &empty, AutomatedSnapshotsEnabled: &disabled,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClient_CreateDatabase_UsesNumericParameterGroupID(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if string(body["parameter_group_id"]) != "42" {
+			t.Errorf("parameter_group_id = %s, want 42", body["parameter_group_id"])
+		}
+		_ = json.NewEncoder(w).Encode(createDatabaseResponse{})
+	})
+	defer server.Close()
+	id := 42
+	if _, err := newTestClient(server).CreateDatabase(context.Background(), CreateDatabaseRequest{ParameterGroupID: &id}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestClient_GetDatabase(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {

@@ -29,6 +29,9 @@ type VpsSnapshotModel struct {
 	Status        types.String  `tfsdk:"status"`
 	VpsInstanceID types.String  `tfsdk:"vps_instance_id"`
 	SizeGB        types.Float64 `tfsdk:"size_gb"`
+	SizeBytes     types.Int64   `tfsdk:"size_bytes"`
+	SizeBasis     types.String  `tfsdk:"size_basis"`
+	ExpiresAt     types.String  `tfsdk:"expires_at"`
 	CreatedAt     types.String  `tfsdk:"created_at"`
 }
 
@@ -73,6 +76,9 @@ func (d *VpsSnapshotsDataSource) Schema(ctx context.Context, req datasource.Sche
 							Description: "Size of the snapshot in GB.",
 							Computed:    true,
 						},
+						"size_bytes": schema.Int64Attribute{Description: "Snapshot size in bytes when measured.", Computed: true},
+						"size_basis": schema.StringAttribute{Description: "How the size was measured.", Computed: true},
+						"expires_at": schema.StringAttribute{Description: "Automatic deletion time, when applicable.", Computed: true},
 						"created_at": schema.StringAttribute{
 							Description: "Timestamp when the snapshot was created.",
 							Computed:    true,
@@ -126,8 +132,30 @@ func (d *VpsSnapshotsDataSource) Read(ctx context.Context, req datasource.ReadRe
 			Description:   types.StringValue(s.Description),
 			Status:        types.StringValue(s.Status),
 			VpsInstanceID: types.StringValue(s.VpsInstanceID),
-			SizeGB:        types.Float64Value(s.SizeGB),
 			CreatedAt:     types.StringValue(s.CreatedAt),
+		}
+		if s.SizeKnown {
+			data.Snapshots[i].SizeGB = types.Float64Value(s.SizeGB)
+		} else {
+			data.Snapshots[i].SizeGB = types.Float64Null()
+		}
+		if s.Description == "" {
+			data.Snapshots[i].Description = types.StringNull()
+		}
+		if s.SizeBytes != nil {
+			data.Snapshots[i].SizeBytes = types.Int64Value(*s.SizeBytes)
+		} else {
+			data.Snapshots[i].SizeBytes = types.Int64Null()
+		}
+		if s.SizeBasis != nil {
+			data.Snapshots[i].SizeBasis = types.StringValue(*s.SizeBasis)
+		} else {
+			data.Snapshots[i].SizeBasis = types.StringNull()
+		}
+		if s.ExpiresAt != nil {
+			data.Snapshots[i].ExpiresAt = types.StringValue(*s.ExpiresAt)
+		} else {
+			data.Snapshots[i].ExpiresAt = types.StringNull()
 		}
 	}
 

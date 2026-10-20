@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
@@ -35,6 +36,7 @@ type ServerlessResource struct {
 type ServerlessResourceModel struct {
 	ID                   types.String   `tfsdk:"id"`
 	Name                 types.String   `tfsdk:"name"`
+	Slug                 types.String   `tfsdk:"slug"`
 	Status               types.String   `tfsdk:"status"`
 	ResourceProfile      types.String   `tfsdk:"resource_profile"`
 	DeploymentType       types.String   `tfsdk:"deployment_type"`
@@ -78,32 +80,37 @@ func (r *ServerlessResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"name": schema.StringAttribute{
 				Description: "Name of the serverless container.",
 				Required:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				Validators:  []validator.String{stringvalidator.LengthAtMost(255)},
+			},
+			"slug": schema.StringAttribute{
+				Description:   "DNS label for this container, unique within the project.",
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators:    []validator.String{stringvalidator.LengthAtMost(63), stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), "lowercase letters, digits, and interior hyphens only")},
 			},
 			"status": schema.StringAttribute{
 				Description: "Current status of the serverless container.",
 				Computed:    true,
 			},
 			"resource_profile": schema.StringAttribute{
-				Description: "Resource profile for the container (free, small, medium, or large).",
+				Description: "Resource profile for the container (free, micro, small, medium, or large).",
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString("small"),
+				Validators:  []validator.String{stringvalidator.OneOf("free", "micro", "small", "medium", "large")},
 			},
 			"deployment_type": schema.StringAttribute{
-				Description: "Deployment type: 'docker_image' for a pre-built image, 'git_repository' to build from a Git repository, or 'zip_upload' to build from an uploaded ZIP archive.",
+				Description: "Deployment type: 'docker_image' for a pre-built image or 'git_repository' to build from a Git repository. Upload ZIP archives with the Danube CLI.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("docker_image", "git_repository", "zip_upload"),
+					stringvalidator.OneOf("docker_image", "git_repository"),
 				},
 			},
 			"image": schema.StringAttribute{
-				Description: "Container image reference without a tag, e.g. 'nginx' (required for docker_image deployments; use image_tag for the tag). Ignored for git_repository/zip_upload — the platform builds and sets it.",
+				Description: "Container image reference without a tag, e.g. 'nginx' (required for docker_image deployments; use image_tag for the tag). Ignored for git_repository — the platform builds and sets it.",
 				Optional:    true,
 				Computed:    true,
 			},
@@ -124,7 +131,7 @@ func (r *ServerlessResource) Schema(ctx context.Context, req resource.SchemaRequ
 				Default:     stringdefault.StaticString("main"),
 			},
 			"source_type": schema.StringAttribute{
-				Description: "How to build the container from source: 'dockerfile' or 'buildpack'. Required for git_repository deployments; defaults to 'dockerfile' for zip_upload.",
+				Description: "How to build the container from Git source: 'dockerfile' or 'buildpack'. Required for git_repository deployments.",
 				Optional:    true,
 				Computed:    true,
 				Validators: []validator.String{
@@ -141,9 +148,10 @@ func (r *ServerlessResource) Schema(ctx context.Context, req resource.SchemaRequ
 				},
 			},
 			"git_credentials": schema.StringAttribute{
-				Description: "SSH private key or access token for private repository access. Required when git_auth_type is 'ssh_key' or 'access_token'. Never returned by the API.",
-				Optional:    true,
-				Sensitive:   true,
+				Description:   "SSH private key or access token for private repository access. Changes replace the container because the update API does not apply credential changes. Never returned by the API.",
+				Optional:      true,
+				Sensitive:     true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"port": schema.Int64Attribute{
 				Description: "Port the container listens on.",
@@ -175,6 +183,7 @@ func (r *ServerlessResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"environment_variables": schema.MapAttribute{
 				Description: "Environment variables for the container.",
 				Optional:    true,
+				Sensitive:   true,
 				ElementType: types.StringType,
 			},
 			"url": schema.StringAttribute{
@@ -243,6 +252,7 @@ func (r *ServerlessResource) Create(ctx context.Context, req resource.CreateRequ
 
 	createReq := client.CreateServerlessRequest{
 		Name:            data.Name.ValueString(),
+		Slug:            data.Slug.ValueString(),
 		DeploymentType:  data.DeploymentType.ValueString(),
 		ResourceProfile: data.ResourceProfile.ValueString(),
 		Port:            int(data.Port.ValueInt64()),
@@ -293,7 +303,11 @@ func (r *ServerlessResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	data.ID = types.StringValue(container.ID)
+	r.mapContainerToState(ctx, container, &data, &resp.Diagnostics)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	tflog.Info(ctx, "Serverless container created, waiting for ready state", map[string]interface{}{
 		"id":   container.ID,
@@ -301,13 +315,10 @@ func (r *ServerlessResource) Create(ctx context.Context, req resource.CreateRequ
 	})
 
 	// Wait for container to be ready
-	err = r.client.WaitForServerlessStatus(ctx, container.ID, "running", createTimeout)
+	err = r.client.WaitForServerlessGeneration(ctx, container.ID, container.SpecGeneration)
 	if err != nil {
-		// Don't fail if just waiting times out - the container might still be deploying
-		tflog.Warn(ctx, "Serverless container did not reach running state within timeout", map[string]interface{}{
-			"id":    container.ID,
-			"error": err.Error(),
-		})
+		resp.Diagnostics.AddError("Serverless rollout did not become ready", err.Error())
+		return
 	}
 
 	// Refresh state
@@ -372,6 +383,10 @@ func (r *ServerlessResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	updateReq := client.UpdateServerlessRequest{}
 	hasChanges := false
+	if !data.Name.Equal(state.Name) {
+		updateReq.Name = data.Name.ValueString()
+		hasChanges = true
+	}
 
 	if !data.ResourceProfile.Equal(state.ResourceProfile) {
 		updateReq.ResourceProfile = data.ResourceProfile.ValueString()
@@ -408,11 +423,6 @@ func (r *ServerlessResource) Update(ctx context.Context, req resource.UpdateRequ
 		hasChanges = true
 	}
 
-	if !data.GitCredentials.Equal(state.GitCredentials) && !data.GitCredentials.IsNull() {
-		updateReq.GitCredentials = data.GitCredentials.ValueString()
-		hasChanges = true
-	}
-
 	if !data.Port.Equal(state.Port) {
 		updateReq.Port = int(data.Port.ValueInt64())
 		hasChanges = true
@@ -436,24 +446,22 @@ func (r *ServerlessResource) Update(ctx context.Context, req resource.UpdateRequ
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		updateReq.EnvironmentVariables = envVars
+		updateReq.EnvironmentVariables = &envVars
 		hasChanges = true
 	}
 
 	if hasChanges {
-		_, err := r.client.UpdateServerless(ctx, data.ID.ValueString(), updateReq)
+		updated, err := r.client.UpdateServerless(ctx, data.ID.ValueString(), updateReq)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to update serverless container", err.Error())
 			return
 		}
 
 		// Wait for update to complete
-		err = r.client.WaitForServerlessStatus(ctx, data.ID.ValueString(), "running", updateTimeout)
+		err = r.client.WaitForServerlessGeneration(ctx, data.ID.ValueString(), updated.SpecGeneration)
 		if err != nil {
-			tflog.Warn(ctx, "Serverless container did not reach running state after update", map[string]interface{}{
-				"id":    data.ID.ValueString(),
-				"error": err.Error(),
-			})
+			resp.Diagnostics.AddError("Serverless rollout did not become ready", err.Error())
+			return
 		}
 	}
 
@@ -513,6 +521,7 @@ func (r *ServerlessResource) ImportState(ctx context.Context, req resource.Impor
 func (r *ServerlessResource) mapContainerToState(ctx context.Context, container *client.ServerlessContainer, data *ServerlessResourceModel, diags *diag.Diagnostics) {
 	data.ID = types.StringValue(container.ID)
 	data.Name = types.StringValue(container.Name)
+	data.Slug = types.StringValue(container.Slug)
 	data.Status = types.StringValue(container.Status)
 	data.ResourceProfile = types.StringValue(container.ResourceProfile)
 	data.DeploymentType = types.StringValue(container.DeploymentType)
@@ -549,8 +558,12 @@ func (r *ServerlessResource) mapContainerToState(ctx context.Context, container 
 	// ($hidden on the model), so state is left untouched here and simply
 	// carries forward whatever the plan/prior state already had.
 
-	if len(container.EnvironmentVariables) > 0 {
-		envVars, envDiags := types.MapValueFrom(ctx, types.StringType, container.EnvironmentVariables)
+	if len(container.EnvironmentVariables) > 0 || !data.EnvironmentVariables.IsNull() {
+		values := map[string]string(container.EnvironmentVariables)
+		if values == nil {
+			values = map[string]string{}
+		}
+		envVars, envDiags := types.MapValueFrom(ctx, types.StringType, values)
 		diags.Append(envDiags...)
 		data.EnvironmentVariables = envVars
 	} else {

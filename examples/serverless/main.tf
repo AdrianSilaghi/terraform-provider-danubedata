@@ -14,6 +14,7 @@ provider "danubedata" {}
 
 # Simple nginx container
 resource "danubedata_serverless" "web" {
+  slug            = "my-web-app"
   name            = "my-web-app"
   deployment_type = "docker_image"
   image           = "nginx"

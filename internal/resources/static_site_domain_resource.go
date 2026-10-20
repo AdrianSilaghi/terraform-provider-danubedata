@@ -2,25 +2,29 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
-	_ resource.Resource                = &StaticSiteDomainResource{}
-	_ resource.ResourceWithConfigure   = &StaticSiteDomainResource{}
-	_ resource.ResourceWithImportState = &StaticSiteDomainResource{}
+	_ resource.Resource                 = &StaticSiteDomainResource{}
+	_ resource.ResourceWithConfigure    = &StaticSiteDomainResource{}
+	_ resource.ResourceWithImportState  = &StaticSiteDomainResource{}
+	_ resource.ResourceWithUpgradeState = &StaticSiteDomainResource{}
 )
 
 type StaticSiteDomainResource struct {
@@ -36,16 +40,8 @@ type StaticSiteDomainResourceModel struct {
 	TLSStatus          types.String `tfsdk:"tls_status"`
 	DeploymentStatus   types.String `tfsdk:"deployment_status"`
 	IsPrimary          types.Bool   `tfsdk:"is_primary"`
-	DNSInstructions    types.Object `tfsdk:"dns_instructions"`
+	DNSInstructions    types.String `tfsdk:"dns_instructions"`
 	CreatedAt          types.String `tfsdk:"created_at"`
-}
-
-// staticSiteDomainDNSInstructionsAttrTypes describes the object type of the dns_instructions attribute.
-var staticSiteDomainDNSInstructionsAttrTypes = map[string]attr.Type{
-	"record_type":  types.StringType,
-	"record_name":  types.StringType,
-	"record_value": types.StringType,
-	"instructions": types.StringType,
 }
 
 func NewStaticSiteDomainResource() resource.Resource {
@@ -58,6 +54,7 @@ func (r *StaticSiteDomainResource) Metadata(ctx context.Context, req resource.Me
 
 func (r *StaticSiteDomainResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Version:     1,
 		Description: "Manages a custom domain attached to a DanubeData static site. After the resource is created the domain is in `pending` verification status; add the DNS record described in `dns_instructions` to prove ownership, then trigger verification out-of-band via `danube pages domains verify` once the record is in place.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -81,6 +78,10 @@ func (r *StaticSiteDomainResource) Schema(ctx context.Context, req resource.Sche
 			"domain": schema.StringAttribute{
 				Description: "The custom domain (e.g., www.example.com).",
 				Required:    true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtMost(253),
+					stringvalidator.RegexMatches(regexp.MustCompile(`^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$`), "a lowercase fully qualified domain name"),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -101,33 +102,45 @@ func (r *StaticSiteDomainResource) Schema(ctx context.Context, req resource.Sche
 				Description: "Whether this is the primary domain for the site.",
 				Computed:    true,
 			},
-			"dns_instructions": schema.SingleNestedAttribute{
-				Description: "DNS record to add for ownership verification.",
+			"dns_instructions": schema.StringAttribute{
+				Description: "Human-readable DNS ownership verification instructions.",
 				Computed:    true,
-				Attributes: map[string]schema.Attribute{
-					"record_type": schema.StringAttribute{
-						Description: "DNS record type (e.g., TXT).",
-						Computed:    true,
-					},
-					"record_name": schema.StringAttribute{
-						Description: "DNS record name.",
-						Computed:    true,
-					},
-					"record_value": schema.StringAttribute{
-						Description: "DNS record value.",
-						Computed:    true,
-					},
-					"instructions": schema.StringAttribute{
-						Description: "Human-readable instructions for configuring the record.",
-						Computed:    true,
-					},
-				},
 			},
 			"created_at": schema.StringAttribute{
 				Description: "Timestamp when the domain attachment was created.",
 				Computed:    true,
 			},
 		},
+	}
+}
+
+func (r *StaticSiteDomainResource) UpgradeState(ctx context.Context) map[int64]resource.StateUpgrader {
+	return map[int64]resource.StateUpgrader{
+		0: {StateUpgrader: func(ctx context.Context, req resource.UpgradeStateRequest, resp *resource.UpgradeStateResponse) {
+			if req.RawState == nil || req.RawState.JSON == nil {
+				resp.Diagnostics.AddError("Cannot upgrade static site domain state", "The old state has no JSON representation.")
+				return
+			}
+			var old map[string]json.RawMessage
+			if err := json.Unmarshal(req.RawState.JSON, &old); err != nil {
+				resp.Diagnostics.AddError("Cannot upgrade static site domain state", err.Error())
+				return
+			}
+			old["dns_instructions"] = json.RawMessage("null")
+			updated, err := json.Marshal(old)
+			if err != nil {
+				resp.Diagnostics.AddError("Cannot upgrade static site domain state", err.Error())
+				return
+			}
+			var current resource.SchemaResponse
+			r.Schema(ctx, resource.SchemaRequest{}, &current)
+			value, err := tftypes.ValueFromJSON(updated, current.Schema.Type().TerraformType(ctx))
+			if err != nil {
+				resp.Diagnostics.AddError("Cannot upgrade static site domain state", err.Error())
+				return
+			}
+			resp.State.Raw = value
+		}},
 	}
 }
 
@@ -167,7 +180,7 @@ func (r *StaticSiteDomainResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	r.mapDomainToState(siteID, domain, &data, &resp.Diagnostics)
+	r.mapDomainToState(siteID, domain, &data)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -189,7 +202,7 @@ func (r *StaticSiteDomainResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	r.mapDomainToState(siteID, domain, &data, &resp.Diagnostics)
+	r.mapDomainToState(siteID, domain, &data)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -226,7 +239,7 @@ func (r *StaticSiteDomainResource) Delete(ctx context.Context, req resource.Dele
 func (r *StaticSiteDomainResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Expected format: {static_site_id}:{domain}
 	parts := strings.SplitN(req.ID, ":", 2)
-	if len(parts) != 2 {
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		resp.Diagnostics.AddError(
 			"Invalid import ID",
 			fmt.Sprintf("Expected format: {static_site_id}:{domain}, got: %s", req.ID),
@@ -240,7 +253,7 @@ func (r *StaticSiteDomainResource) ImportState(ctx context.Context, req resource
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("domain"), parts[1])...)
 }
 
-func (r *StaticSiteDomainResource) mapDomainToState(siteID string, domain *client.StaticSiteDomain, data *StaticSiteDomainResourceModel, diags *diag.Diagnostics) {
+func (r *StaticSiteDomainResource) mapDomainToState(siteID string, domain *client.StaticSiteDomain, data *StaticSiteDomainResourceModel) {
 	data.ID = types.StringValue(fmt.Sprintf("%s:%s", siteID, domain.ID))
 	data.StaticSiteID = types.StringValue(siteID)
 	data.DomainID = types.StringValue(domain.ID)
@@ -250,17 +263,7 @@ func (r *StaticSiteDomainResource) mapDomainToState(siteID string, domain *clien
 	data.DeploymentStatus = types.StringValue(domain.DeploymentStatus)
 	data.IsPrimary = types.BoolValue(domain.IsPrimary)
 
-	dnsInstructions, dnsDiags := types.ObjectValue(
-		staticSiteDomainDNSInstructionsAttrTypes,
-		map[string]attr.Value{
-			"record_type":  types.StringValue(domain.DNSInstructions.RecordType),
-			"record_name":  types.StringValue(domain.DNSInstructions.RecordName),
-			"record_value": types.StringValue(domain.DNSInstructions.RecordValue),
-			"instructions": types.StringValue(domain.DNSInstructions.Instructions),
-		},
-	)
-	diags.Append(dnsDiags...)
-	data.DNSInstructions = dnsInstructions
+	data.DNSInstructions = types.StringValue(domain.DNSInstructions)
 
 	data.CreatedAt = types.StringValue(domain.CreatedAt)
 }

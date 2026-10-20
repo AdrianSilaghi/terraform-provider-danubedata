@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestClient_CreateServerless(t *testing.T) {
@@ -23,6 +24,9 @@ func TestClient_CreateServerless(t *testing.T) {
 
 		if req.Name != "my-app" {
 			t.Errorf("Name = %v, want my-app", req.Name)
+		}
+		if req.Slug != "my-app" {
+			t.Errorf("Slug = %q, want my-app", req.Slug)
 		}
 		if req.DeploymentType != "docker_image" {
 			t.Errorf("DeploymentType = %v, want docker_image", req.DeploymentType)
@@ -57,6 +61,7 @@ func TestClient_CreateServerless(t *testing.T) {
 	c := newTestClient(server)
 	container, err := c.CreateServerless(context.Background(), CreateServerlessRequest{
 		Name:            "my-app",
+		Slug:            "my-app",
 		DeploymentType:  "docker_image",
 		ResourceProfile: "small",
 		Image:           "nginx",
@@ -77,6 +82,68 @@ func TestClient_CreateServerless(t *testing.T) {
 	}
 	if container.DeploymentType != "docker_image" {
 		t.Errorf("DeploymentType = %v, want docker_image", container.DeploymentType)
+	}
+}
+
+func TestClient_WaitForServerlessGeneration_DoesNotAcceptPreviousSuccess(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"container":{"id":"srv-123","status":"running","spec_generation":2,"observed_generation":1,"status_details":{"summary":"ready","operation":{"terminal":true}}},"url":"https://example.com","monthly_cost":"0.00"}`))
+	})
+	defer server.Close()
+
+	c := newTestClient(server)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	if err := c.WaitForServerlessGeneration(ctx, "srv-123", 2); err == nil {
+		t.Fatal("accepted the previous generation's ready state")
+	}
+}
+
+func TestClient_WaitForServerlessGeneration_ReadyAndFailed(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		summary string
+		wantErr bool
+	}{
+		{"ready", "ready", false},
+		{"degraded", "degraded", true},
+		{"failed", "failed", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"container": map[string]interface{}{
+						"id": "srv-123", "spec_generation": 2, "observed_generation": 2,
+						"status_details": map[string]interface{}{"summary": tc.summary, "operation": map[string]bool{"terminal": true}},
+					},
+					"monthly_cost": "0.00",
+				})
+			})
+			defer server.Close()
+			err := newTestClient(server).WaitForServerlessGeneration(context.Background(), "srv-123", 2)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("error = %v, wantErr %t", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestClient_UpdateServerless_ClearsEnvironmentVariables(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if string(body["environment_variables"]) != "{}" {
+			t.Errorf("environment_variables = %s, want {}", body["environment_variables"])
+		}
+		_, _ = w.Write([]byte(`{"container":{"id":"srv-123","spec_generation":2}}`))
+	})
+	defer server.Close()
+	values := map[string]string{}
+	_, err := newTestClient(server).UpdateServerless(context.Background(), "srv-123", UpdateServerlessRequest{EnvironmentVariables: &values})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -131,6 +198,30 @@ func TestClient_GetServerless(t *testing.T) {
 	}
 	if container.EnvironmentVariables["ENV"] != "production" {
 		t.Errorf("EnvironmentVariables[ENV] = %v, want production", container.EnvironmentVariables["ENV"])
+	}
+}
+
+func TestClient_GetServerless_EmptyEnvironmentList(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"container":{"id":"srv-123","environment_variables":[]},"monthly_cost":"0.00"}`))
+	})
+	defer server.Close()
+	container, err := newTestClient(server).GetServerless(context.Background(), "srv-123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(container.EnvironmentVariables) != 0 {
+		t.Fatalf("env = %#v", container.EnvironmentVariables)
+	}
+}
+
+func TestClient_GetServerless_RejectsNonemptyEnvironmentList(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"container":{"id":"srv-123","environment_variables":["SECRET=unexpected"]},"monthly_cost":"0.00"}`))
+	})
+	defer server.Close()
+	if _, err := newTestClient(server).GetServerless(context.Background(), "srv-123"); err == nil {
+		t.Fatal("accepted a nonempty list of environment variables")
 	}
 }
 

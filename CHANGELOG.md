@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Align the existing resources with the current API and CLI contracts, including required VPS CPU platform and serverless slug, numeric parameter-group IDs, typed firewall sources and single ports, static-site domain DNS instructions, snapshot decimal sizes, and storage tags.
+- Preserve resource IDs when asynchronous creation succeeds but waiting or refresh fails, so Terraform can recover the created resource.
+- Accept timeout-only snapshot updates without overwriting computed values or discarding the new timeout.
+- Reject HTTP redirects instead of treating a redirected API mutation as successful.
+- Preserve write-only settings and accept the API's empty-array encoding for associative fields.
+- Update every standalone example and the matching resource documentation. `make docs` now describes the hand-maintained documentation workflow instead of overwriting it with generated pages.
+
+### Added
+
+- Optional provider `team_id` and `DANUBEDATA_TEAM_ID` project selection through `X-Team-Id`.
+- Configuration and response fields for the supported resource families, including network tier, storage autoscaling, serverless rollout generation, scoped storage keys, and bucket settings.
+- Offline Terraform lifecycle tests and response fixtures grounded in the current API, alongside focused client and state regression tests.
+
 ## [0.3.4] - 2026-07-19
 
 ### Fixed

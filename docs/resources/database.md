@@ -87,12 +87,26 @@ Limits in the dashboard.
   Changing this forces a new resource.
 * `version` - Engine version, e.g. `18` for PostgreSQL or `8.4` for MySQL.
   Defaults to the current default version for the engine. Available versions
-  are validated by the API; see the `danubedata_database_providers` data source
-  for the current list.
+  are validated by the API. Changing the version replaces the instance.
 * `storage_size_gb` - Storage in GB. Defaults to the profile's included
   storage. May only be increased — the API rejects shrinking.
 * `parameter_group_id` - ID of a parameter group for custom engine
-  configuration. Must match the instance's engine and version.
+  configuration. Must be a positive numeric ID matching the instance's engine
+  and version. Removing it sends `null` to the API.
+* `configuration` - Map of engine settings (string values) that override
+  unlocked settings from the parameter group. An empty map clears overrides.
+* `network_tier` - `standard` (default) or `10g`. The 10 Gb tier requires
+  account enrollment and location availability. Changing it replaces the
+  instance.
+* `automated_snapshots_enabled` - Enable automated backups. Because creation
+  does not accept this field, the provider sets it immediately after the
+  database reaches `running`.
+* `storage_autoscaling_enabled` - Automatically grow storage when it fills.
+  Supported only by database types whose storage can grow.
+* `storage_autoscale_threshold_percent` - Usage threshold from 1 to 100%.
+  Defaults to the API policy value when omitted.
+* `storage_autoscale_increment_gib` - Growth step in GiB, at least 1. Defaults
+  to the API policy value when omitted.
 * `dns_enabled` - Whether to expose the instance publicly via DNS and a TCP
   load balancer. Defaults to `false`. Note that the API does not return live
   DNS state, so out-of-band changes are not detected until the next apply that
@@ -140,6 +154,10 @@ terraform import danubedata_database.example 9f8c2d14-3b7a-4e51-9c6d-2a1f8e0b7c3
   accordingly.
 - Storage can only be grown, never shrunk.
 - Changing `resource_profile` resizes in place; changing `engine`, `name`,
-  `database_name` or `datacenter` replaces the instance.
+  `database_name`, `version`, `network_tier` or `datacenter` replaces the instance.
+- The API does not return `configuration`, `parameter_group_id` or
+  `automated_snapshots_enabled`; Terraform retains their configured values and
+  cannot detect changes made outside Terraform. Imported instances have these
+  fields unset until you configure them.
 - The provider acts on the API token owner's current team. If you belong to
   multiple teams, confirm the active team before your first apply.

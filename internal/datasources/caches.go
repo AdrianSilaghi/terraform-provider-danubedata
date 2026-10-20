@@ -28,6 +28,8 @@ type CacheInstanceModel struct {
 	Status          types.String  `tfsdk:"status"`
 	CacheProvider   types.String  `tfsdk:"cache_provider"`
 	Version         types.String  `tfsdk:"version"`
+	Datacenter      types.String  `tfsdk:"datacenter"`
+	NetworkTier     types.String  `tfsdk:"network_tier"`
 	ResourceProfile types.String  `tfsdk:"resource_profile"`
 	CPUCores        types.Int64   `tfsdk:"cpu_cores"`
 	MemorySizeMB    types.Int64   `tfsdk:"memory_size_mb"`
@@ -74,6 +76,8 @@ func (d *CachesDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 							Description: "Cache version.",
 							Computed:    true,
 						},
+						"datacenter":   schema.StringAttribute{Computed: true, Description: "Datacenter location."},
+						"network_tier": schema.StringAttribute{Computed: true, Description: "Requested network tier (standard or 10g)."},
 						"resource_profile": schema.StringAttribute{
 							Description: "Resource profile (predefined CPU/RAM configuration).",
 							Computed:    true,
@@ -155,6 +159,8 @@ func (d *CachesDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			Status:          types.StringValue(inst.Status),
 			CacheProvider:   types.StringValue(cacheProviderType),
 			Version:         types.StringValue(inst.Version),
+			Datacenter:      types.StringValue(inst.Datacenter),
+			NetworkTier:     types.StringValue(inst.NetworkTier),
 			ResourceProfile: types.StringValue(inst.ResourceProfile),
 			CPUCores:        types.Int64Value(int64(inst.CPUCores)),
 			MemorySizeMB:    types.Int64Value(int64(inst.MemorySizeMB)),

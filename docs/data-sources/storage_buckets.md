@@ -66,6 +66,11 @@ This data source has no arguments.
   * `public_access` - Whether public access is enabled.
   * `versioning_enabled` - Whether versioning is enabled.
   * `encryption_enabled` - Whether encryption is enabled.
+  * `encryption_type` - Server-side encryption type.
+  * `object_lock_enabled` - Whether Object Lock was enabled at creation.
+  * `object_lock_default_retention_mode` / `object_lock_default_retention_days` - Default retention, if set.
+  * `size_limit_bytes` - Size quota in bytes, if set.
+  * `tags` - Bucket tag map, or null when untagged.
   * `size_bytes` - Current size in bytes.
   * `object_count` - Number of objects in the bucket.
   * `monthly_cost` - Estimated monthly cost.

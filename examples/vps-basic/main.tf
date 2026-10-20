@@ -20,11 +20,12 @@ resource "danubedata_ssh_key" "main" {
 
 # Create a VPS instance
 resource "danubedata_vps" "web" {
-  name        = "web-server"
-  image       = "ubuntu-22.04"
-  datacenter  = "fsn1"
-  auth_method = "ssh_key"
-  ssh_key_id  = danubedata_ssh_key.main.id
+  cpu_platform = "amd"
+  name         = "web-server"
+  image        = "ubuntu-22.04"
+  datacenter   = "fsn1"
+  auth_method  = "ssh_key"
+  ssh_key_id   = danubedata_ssh_key.main.id
 
   # Optional: pick a resource profile (defaults to "nano_shared" if omitted).
   # cpu_cores, memory_size_gb, and storage_size_gb are read-only outputs

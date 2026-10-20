@@ -27,6 +27,9 @@ func TestClient_CreateVps(t *testing.T) {
 			t.Fatalf("failed to decode request: %v", err)
 		}
 
+		if req.CPUPlatform != "amd" {
+			t.Errorf("CPUPlatform = %q, want amd", req.CPUPlatform)
+		}
 		if req.Name != "test-vps" {
 			t.Errorf("Name = %v, want test-vps", req.Name)
 		}
@@ -73,11 +76,12 @@ func TestClient_CreateVps(t *testing.T) {
 	c := newTestClient(server)
 	var sshKeyID int64 = 123
 	vps, err := c.CreateVps(context.Background(), CreateVpsRequest{
-		Name:       "test-vps",
-		Image:      "ubuntu-22.04",
-		Datacenter: "fsn1",
-		AuthMethod: "ssh_key",
-		SSHKeyID:   &sshKeyID,
+		Name:        "test-vps",
+		Image:       "ubuntu-22.04",
+		Datacenter:  "fsn1",
+		CPUPlatform: "amd",
+		AuthMethod:  "ssh_key",
+		SSHKeyID:    &sshKeyID,
 	})
 
 	if err != nil {

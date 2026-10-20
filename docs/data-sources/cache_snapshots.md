@@ -12,7 +12,7 @@ output "snapshot_count" {
 }
 
 output "total_snapshot_size_mb" {
-  value = sum([for s in data.danubedata_cache_snapshots.all.snapshots : s.size_mb])
+  value = sum([for s in data.danubedata_cache_snapshots.all.snapshots : coalesce(s.size_mb, 0)])
 }
 ```
 
@@ -76,7 +76,9 @@ account; filter the result in Terraform as shown above.
   * `description` - Description of the snapshot.
   * `status` - Current status (`pending`, `creating`, `ready`, `failed`, `restoring`, `restore_failed`, `deleting`).
   * `cache_instance_id` - UUID of the cache instance this snapshot belongs to.
-  * `size_mb` - Size of the snapshot in MB. May be fractional.
+  * `size_mb` - Size of the snapshot in MB. May be fractional; null while unknown.
+  * `size_bytes` - Exact size in bytes, or null while unknown.
+  * `size_basis` - How size was measured (`stored`, `uploaded`, or `captured`), or null while unknown.
   * `created_at` - Timestamp when the snapshot was created.
 
 ~> **Note** The terminal success state is `ready`, not `completed`. `failed`

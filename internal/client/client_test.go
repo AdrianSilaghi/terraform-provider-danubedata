@@ -44,6 +44,43 @@ func TestClient_New(t *testing.T) {
 	}
 }
 
+func TestClient_ProjectHeaderAndTrailingSlash(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/ssh-keys" {
+			t.Errorf("path = %q, want /ssh-keys", r.URL.Path)
+		}
+		if got := r.Header.Get("X-Team-Id"); got != "42" {
+			t.Errorf("X-Team-Id = %q, want 42", got)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	defer server.Close()
+	c := New(Config{BaseURL: server.URL + "/", APIToken: "fake-token", TeamID: 42})
+	if err := c.doRequest(context.Background(), http.MethodGet, "/ssh-keys", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClient_RejectsRedirects(t *testing.T) {
+	var redirected bool
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/login" {
+			redirected = true
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.Redirect(w, r, "/login", http.StatusFound)
+	})
+	defer server.Close()
+	err := newTestClient(server).doRequest(context.Background(), http.MethodPost, "/test", nil, nil)
+	if err == nil {
+		t.Fatal("redirect reported as successful API mutation")
+	}
+	if redirected {
+		t.Fatal("API redirect followed with credentials")
+	}
+}
+
 func TestClient_DoRequest_Success(t *testing.T) {
 	type testResponse struct {
 		Message string `json:"message"`

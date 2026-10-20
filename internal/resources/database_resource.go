@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -32,30 +34,36 @@ type DatabaseResource struct {
 }
 
 type DatabaseResourceModel struct {
-	ID               types.String   `tfsdk:"id"`
-	Name             types.String   `tfsdk:"name"`
-	Status           types.String   `tfsdk:"status"`
-	Engine           types.String   `tfsdk:"engine"`
-	DatabaseName     types.String   `tfsdk:"database_name"`
-	ResourceProfile  types.String   `tfsdk:"resource_profile"`
-	StorageSizeGB    types.Int64    `tfsdk:"storage_size_gb"`
-	MemorySizeMB     types.Int64    `tfsdk:"memory_size_mb"`
-	CPUCores         types.Int64    `tfsdk:"cpu_cores"`
-	Version          types.String   `tfsdk:"version"`
-	Datacenter       types.String   `tfsdk:"datacenter"`
-	ParameterGroupID types.String   `tfsdk:"parameter_group_id"`
-	Endpoint         types.String   `tfsdk:"endpoint"`
-	Port             types.Int64    `tfsdk:"port"`
-	Username         types.String   `tfsdk:"username"`
-	Password         types.String   `tfsdk:"password"`
-	ConnectionInfo   types.String   `tfsdk:"connection_info"`
-	DnsEnabled       types.Bool     `tfsdk:"dns_enabled"`
-	MonthlyCostCents types.Int64    `tfsdk:"monthly_cost_cents"`
-	MonthlyCost      types.Float64  `tfsdk:"monthly_cost"`
-	DeployedAt       types.String   `tfsdk:"deployed_at"`
-	CreatedAt        types.String   `tfsdk:"created_at"`
-	UpdatedAt        types.String   `tfsdk:"updated_at"`
-	Timeouts         timeouts.Value `tfsdk:"timeouts"`
+	ID                               types.String   `tfsdk:"id"`
+	Name                             types.String   `tfsdk:"name"`
+	Status                           types.String   `tfsdk:"status"`
+	Engine                           types.String   `tfsdk:"engine"`
+	DatabaseName                     types.String   `tfsdk:"database_name"`
+	ResourceProfile                  types.String   `tfsdk:"resource_profile"`
+	StorageSizeGB                    types.Int64    `tfsdk:"storage_size_gb"`
+	MemorySizeMB                     types.Int64    `tfsdk:"memory_size_mb"`
+	CPUCores                         types.Int64    `tfsdk:"cpu_cores"`
+	Version                          types.String   `tfsdk:"version"`
+	Datacenter                       types.String   `tfsdk:"datacenter"`
+	NetworkTier                      types.String   `tfsdk:"network_tier"`
+	ParameterGroupID                 types.String   `tfsdk:"parameter_group_id"`
+	Configuration                    types.Map      `tfsdk:"configuration"`
+	AutomatedSnapshotsEnabled        types.Bool     `tfsdk:"automated_snapshots_enabled"`
+	StorageAutoscalingEnabled        types.Bool     `tfsdk:"storage_autoscaling_enabled"`
+	StorageAutoscaleThresholdPercent types.Int64    `tfsdk:"storage_autoscale_threshold_percent"`
+	StorageAutoscaleIncrementGiB     types.Int64    `tfsdk:"storage_autoscale_increment_gib"`
+	Endpoint                         types.String   `tfsdk:"endpoint"`
+	Port                             types.Int64    `tfsdk:"port"`
+	Username                         types.String   `tfsdk:"username"`
+	Password                         types.String   `tfsdk:"password"`
+	ConnectionInfo                   types.String   `tfsdk:"connection_info"`
+	DnsEnabled                       types.Bool     `tfsdk:"dns_enabled"`
+	MonthlyCostCents                 types.Int64    `tfsdk:"monthly_cost_cents"`
+	MonthlyCost                      types.Float64  `tfsdk:"monthly_cost"`
+	DeployedAt                       types.String   `tfsdk:"deployed_at"`
+	CreatedAt                        types.String   `tfsdk:"created_at"`
+	UpdatedAt                        types.String   `tfsdk:"updated_at"`
+	Timeouts                         timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewDatabaseResource() resource.Resource {
@@ -139,9 +147,10 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 				Computed:    true,
 			},
 			"version": schema.StringAttribute{
-				Description: "Version of the database software.",
-				Optional:    true,
-				Computed:    true,
+				Description:   "Version of the database software.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), stringplanmodifier.RequiresReplace()},
 			},
 			"datacenter": schema.StringAttribute{
 				Description: "Datacenter location (fsn1, nbg1, hel1).",
@@ -156,6 +165,32 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 			"parameter_group_id": schema.StringAttribute{
 				Description: "ID of the parameter group to use for custom configuration.",
 				Optional:    true,
+				Validators:  []validator.String{stringvalidator.RegexMatches(regexp.MustCompile(`^[1-9][0-9]*$`), "must be a positive numeric ID")},
+			},
+			"network_tier": schema.StringAttribute{
+				Description:   "Network tier (standard or 10g). The 10g tier requires account enrollment and location availability.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), stringplanmodifier.RequiresReplace()},
+				Validators:    []validator.String{stringvalidator.OneOf("standard", "10g")},
+			},
+			"configuration": schema.MapAttribute{
+				Description: "Engine settings that override unlocked parameter group settings. Values are sent as strings; the API does not return this field, so external changes cannot be detected on refresh.",
+				Optional:    true,
+				ElementType: types.StringType,
+			},
+			"automated_snapshots_enabled": schema.BoolAttribute{
+				Description: "Enable or disable automated backups. The API does not return this setting, so external changes cannot be detected on refresh.",
+				Optional:    true,
+			},
+			"storage_autoscaling_enabled": schema.BoolAttribute{Optional: true, Computed: true, Description: "Grow storage automatically as it fills. Supported only for database types whose storage can grow."},
+			"storage_autoscale_threshold_percent": schema.Int64Attribute{
+				Optional: true, Computed: true, Description: "Storage usage percent that triggers an automatic growth step.",
+				Validators: []validator.Int64{int64validator.Between(1, 100)},
+			},
+			"storage_autoscale_increment_gib": schema.Int64Attribute{
+				Optional: true, Computed: true, Description: "GiB added at each automatic growth step.",
+				Validators: []validator.Int64{int64validator.AtLeast(1)},
 			},
 			"endpoint": schema.StringAttribute{
 				Description: "Connection endpoint for the database instance.",
@@ -244,7 +279,6 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	// configured value is applied via a follow-up resize once the instance is running.
 	plannedStorageSizeGB := data.StorageSizeGB
 
-	// Get timeout
 	createTimeout, diags := data.Timeouts.Create(ctx, 30*time.Minute)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -254,12 +288,34 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	ctx, cancel := context.WithTimeout(ctx, createTimeout)
 	defer cancel()
 
-	// Build create request
 	createReq := client.CreateDatabaseRequest{
 		Name:            data.Name.ValueString(),
 		Provider:        data.Engine.ValueString(),
 		Datacenter:      data.Datacenter.ValueString(),
 		ResourceProfile: data.ResourceProfile.ValueString(),
+	}
+	if !data.NetworkTier.IsNull() && !data.NetworkTier.IsUnknown() {
+		createReq.NetworkTier = data.NetworkTier.ValueString()
+	}
+	if !data.StorageAutoscalingEnabled.IsNull() && !data.StorageAutoscalingEnabled.IsUnknown() {
+		enabled := data.StorageAutoscalingEnabled.ValueBool()
+		createReq.StorageAutoscalingEnabled = &enabled
+	}
+	if !data.StorageAutoscaleThresholdPercent.IsNull() && !data.StorageAutoscaleThresholdPercent.IsUnknown() {
+		threshold := int(data.StorageAutoscaleThresholdPercent.ValueInt64())
+		createReq.StorageAutoscaleThresholdPercent = &threshold
+	}
+	if !data.StorageAutoscaleIncrementGiB.IsNull() && !data.StorageAutoscaleIncrementGiB.IsUnknown() {
+		increment := int(data.StorageAutoscaleIncrementGiB.ValueInt64())
+		createReq.StorageAutoscaleIncrementGiB = &increment
+	}
+	if !data.Configuration.IsNull() && !data.Configuration.IsUnknown() {
+		config := make(map[string]string)
+		resp.Diagnostics.Append(data.Configuration.ElementsAs(ctx, &config, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		createReq.Configuration = config
 	}
 
 	if !data.DatabaseName.IsNull() && !data.DatabaseName.IsUnknown() {
@@ -271,7 +327,11 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	if !data.ParameterGroupID.IsNull() && !data.ParameterGroupID.IsUnknown() {
-		paramGroupID := data.ParameterGroupID.ValueString()
+		paramGroupID, err := strconv.Atoi(data.ParameterGroupID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Invalid parameter group ID", err.Error())
+			return
+		}
 		createReq.ParameterGroupID = &paramGroupID
 	}
 
@@ -280,7 +340,6 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		"engine": data.Engine.ValueString(),
 	})
 
-	// Create database instance
 	database, err := r.client.CreateDatabase(ctx, createReq)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create database instance", err.Error())
@@ -288,13 +347,16 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	data.ID = types.StringValue(database.ID)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), database.ID)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	tflog.Info(ctx, "Database instance created, waiting for running state", map[string]interface{}{
 		"id":   database.ID,
 		"name": database.Name,
 	})
 
-	// Wait for database to be running
 	err = r.client.WaitForDatabaseStatus(ctx, database.ID, "running", createTimeout)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -304,7 +366,6 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	// Refresh state after database is running
 	database, err = r.client.GetDatabase(ctx, database.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read database instance after creation", err.Error())
@@ -348,6 +409,14 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 			return
 		}
 	}
+
+	if !data.AutomatedSnapshotsEnabled.IsNull() && !data.AutomatedSnapshotsEnabled.IsUnknown() {
+		enabled := data.AutomatedSnapshotsEnabled.ValueBool()
+		if _, err := r.client.UpdateDatabase(ctx, database.ID, client.UpdateDatabaseRequest{AutomatedSnapshotsEnabled: &enabled}); err != nil {
+			resp.Diagnostics.AddError("Failed to configure automated database backups", err.Error())
+			return
+		}
+	}
 }
 
 func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -386,7 +455,6 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	// Get timeout
 	updateTimeout, diags := data.Timeouts.Update(ctx, 30*time.Minute)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -396,7 +464,6 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
 	defer cancel()
 
-	// Build update request
 	updateReq := client.UpdateDatabaseRequest{}
 	hasChanges := false
 
@@ -406,10 +473,46 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 	}
 
 	if !data.ParameterGroupID.Equal(state.ParameterGroupID) {
-		if !data.ParameterGroupID.IsNull() {
-			paramGroupID := data.ParameterGroupID.ValueString()
-			updateReq.ParameterGroupID = &paramGroupID
+		if data.ParameterGroupID.IsNull() {
+			updateReq.ParameterGroupID = new(*int)
+		} else {
+			paramGroupID, err := strconv.Atoi(data.ParameterGroupID.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddError("Invalid parameter group ID", err.Error())
+				return
+			}
+			paramGroupIDPtr := &paramGroupID
+			updateReq.ParameterGroupID = &paramGroupIDPtr
 		}
+		hasChanges = true
+	}
+	if !data.Configuration.Equal(state.Configuration) {
+		config := make(map[string]string)
+		if !data.Configuration.IsNull() {
+			resp.Diagnostics.Append(data.Configuration.ElementsAs(ctx, &config, false)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+		}
+		updateReq.Configuration = &config
+		hasChanges = true
+	}
+	if !data.StorageAutoscalingEnabled.Equal(state.StorageAutoscalingEnabled) || !data.StorageAutoscaleThresholdPercent.Equal(state.StorageAutoscaleThresholdPercent) || !data.StorageAutoscaleIncrementGiB.Equal(state.StorageAutoscaleIncrementGiB) {
+		enabled := data.StorageAutoscalingEnabled.ValueBool()
+		updateReq.StorageAutoscalingEnabled = &enabled
+		if !data.StorageAutoscaleThresholdPercent.IsNull() && !data.StorageAutoscaleThresholdPercent.IsUnknown() {
+			threshold := int(data.StorageAutoscaleThresholdPercent.ValueInt64())
+			updateReq.StorageAutoscaleThresholdPercent = &threshold
+		}
+		if !data.StorageAutoscaleIncrementGiB.IsNull() && !data.StorageAutoscaleIncrementGiB.IsUnknown() {
+			increment := int(data.StorageAutoscaleIncrementGiB.ValueInt64())
+			updateReq.StorageAutoscaleIncrementGiB = &increment
+		}
+		hasChanges = true
+	}
+	if !data.AutomatedSnapshotsEnabled.Equal(state.AutomatedSnapshotsEnabled) && !data.AutomatedSnapshotsEnabled.IsNull() {
+		enabled := data.AutomatedSnapshotsEnabled.ValueBool()
+		updateReq.AutomatedSnapshotsEnabled = &enabled
 		hasChanges = true
 	}
 
@@ -481,7 +584,6 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	// Get timeout
 	deleteTimeout, diags := data.Timeouts.Delete(ctx, 15*time.Minute)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -541,7 +643,6 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 		}
 	}
 
-	// Stop the database if it's not already stopped
 	if status != "stopped" && status != "deleted" && status != "error" {
 		tflog.Info(ctx, "Stopping database before deletion", map[string]interface{}{
 			"id":     databaseID,
@@ -554,7 +655,6 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 			return
 		}
 
-		// Wait for database to be stopped
 		err = r.client.WaitForDatabaseStatus(ctx, databaseID, "stopped", deleteTimeout)
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -565,7 +665,6 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 		}
 	}
 
-	// Now delete the database
 	err = r.client.DeleteDatabase(ctx, databaseID)
 	if err != nil {
 		if client.IsNotFound(err) {
@@ -575,7 +674,6 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	// Wait for database to be deleted
 	err = r.client.WaitForDatabaseDeletion(ctx, databaseID, deleteTimeout)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -611,6 +709,18 @@ func (r *DatabaseResource) mapDatabaseToState(database *client.DatabaseInstance,
 	// Map datacenter - preserve from state if not returned by API
 	if database.Datacenter != "" {
 		data.Datacenter = types.StringValue(database.Datacenter)
+	}
+	if database.NetworkTier != "" {
+		data.NetworkTier = types.StringValue(database.NetworkTier)
+	}
+	if database.StorageAutoscalePolicy != nil {
+		data.StorageAutoscalingEnabled = types.BoolValue(database.StorageAutoscalePolicy.Enabled)
+		data.StorageAutoscaleThresholdPercent = types.Int64Value(int64(database.StorageAutoscalePolicy.ThresholdPercent))
+		data.StorageAutoscaleIncrementGiB = types.Int64Value(int64(database.StorageAutoscalePolicy.IncrementGiB))
+	} else {
+		data.StorageAutoscalingEnabled = types.BoolNull()
+		data.StorageAutoscaleThresholdPercent = types.Int64Null()
+		data.StorageAutoscaleIncrementGiB = types.Int64Null()
 	}
 
 	// Map database_name if returned by API

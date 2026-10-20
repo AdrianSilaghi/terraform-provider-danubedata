@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -15,12 +17,14 @@ type Client struct {
 	apiToken   string
 	httpClient *http.Client
 	userAgent  string
+	teamID     int64
 }
 
 type Config struct {
 	BaseURL   string
 	APIToken  string
 	UserAgent string
+	TeamID    int64
 }
 
 // Pagination represents pagination information from API responses
@@ -33,12 +37,16 @@ type Pagination struct {
 
 func New(config Config) *Client {
 	return &Client{
-		baseURL:  config.BaseURL,
+		baseURL:  strings.TrimRight(config.BaseURL, "/"),
 		apiToken: config.APIToken,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		},
 		userAgent: config.UserAgent,
+		teamID:    config.TeamID,
 	}
 }
 
@@ -61,6 +69,9 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 	req.Header.Set("Authorization", "Bearer "+c.apiToken)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
+	if c.teamID > 0 {
+		req.Header.Set("X-Team-Id", strconv.FormatInt(c.teamID, 10))
+	}
 	if c.userAgent != "" {
 		req.Header.Set("User-Agent", c.userAgent)
 	}
@@ -76,7 +87,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return parseAPIError(resp.StatusCode, respBody)
 	}
 

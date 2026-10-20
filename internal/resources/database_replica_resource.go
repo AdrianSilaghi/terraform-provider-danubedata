@@ -144,6 +144,11 @@ func (r *DatabaseReplicaResource) Create(ctx context.Context, req resource.Creat
 			newest = rep
 		}
 	}
+	r.mapReplicaToState(instanceID, &newest, &data)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if err := r.client.WaitForDatabaseReplicaReady(ctx, instanceID, newest.ReplicaIndex, createTimeout); err != nil {
 		resp.Diagnostics.AddError(
@@ -231,7 +236,7 @@ func (r *DatabaseReplicaResource) Delete(ctx context.Context, req resource.Delet
 func (r *DatabaseReplicaResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Expected format: {database_instance_id}:{replica_index}
 	parts := strings.SplitN(req.ID, ":", 2)
-	if len(parts) != 2 {
+	if len(parts) != 2 || parts[0] == "" {
 		resp.Diagnostics.AddError(
 			"Invalid import ID",
 			fmt.Sprintf("Expected format: {database_instance_id}:{replica_index}, got: %s", req.ID),
@@ -239,8 +244,8 @@ func (r *DatabaseReplicaResource) ImportState(ctx context.Context, req resource.
 		return
 	}
 	idx, err := strconv.Atoi(parts[1])
-	if err != nil {
-		resp.Diagnostics.AddError("Invalid replica_index in import ID", err.Error())
+	if err != nil || idx < 1 {
+		resp.Diagnostics.AddError("Invalid replica_index in import ID", "replica_index must be a positive integer")
 		return
 	}
 

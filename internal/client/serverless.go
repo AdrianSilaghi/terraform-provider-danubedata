@@ -1,33 +1,75 @@
 package client
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 )
 
+type environmentVariables map[string]string
+
+func (v *environmentVariables) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if string(data) == "[]" || string(data) == "null" {
+		*v = nil
+		return nil
+	}
+	return json.Unmarshal(data, (*map[string]string)(v))
+}
+
+type serverlessMonthlyCost float64
+
+func (v *serverlessMonthlyCost) UnmarshalJSON(data []byte) error {
+	var amount string
+	if len(data) > 0 && data[0] == '"' {
+		if err := json.Unmarshal(data, &amount); err != nil {
+			return err
+		}
+	} else {
+		amount = string(data)
+	}
+	parsed, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return err
+	}
+	*v = serverlessMonthlyCost(parsed)
+	return nil
+}
+
 // ServerlessContainer represents a serverless container from the API
 type ServerlessContainer struct {
-	ID                   string            `json:"id"`
-	TeamID               int               `json:"team_id"`
-	UserID               int               `json:"user_id"`
-	Name                 string            `json:"name"`
-	Status               string            `json:"status"`
-	ResourceProfile      string            `json:"resource_profile"`
-	DeploymentType       string            `json:"deployment_type"`
-	SourceType           *string           `json:"source_type"`
-	Image                *string           `json:"image"`
-	ImageTag             string            `json:"image_tag"`
-	RepositoryURL        *string           `json:"repository_url"`
-	RepositoryBranch     string            `json:"repository_branch"`
-	GitAuthType          string            `json:"git_auth_type"`
-	Port                 int               `json:"port"`
-	MinScale             int               `json:"min_scale"`
-	MaxScale             int               `json:"max_scale"`
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	URL                  string            `json:"url"`
-	CreatedAt            string            `json:"created_at"`
-	UpdatedAt            string            `json:"updated_at"`
+	ID                 string `json:"id"`
+	Slug               string `json:"slug"`
+	SpecGeneration     int    `json:"spec_generation"`
+	ObservedGeneration int    `json:"observed_generation"`
+	StatusDetails      struct {
+		Summary   string `json:"summary"`
+		Operation struct {
+			Terminal bool `json:"terminal"`
+		} `json:"operation"`
+	} `json:"status_details"`
+	TeamID               int                  `json:"team_id"`
+	UserID               int                  `json:"user_id"`
+	Name                 string               `json:"name"`
+	Status               string               `json:"status"`
+	ResourceProfile      string               `json:"resource_profile"`
+	DeploymentType       string               `json:"deployment_type"`
+	SourceType           *string              `json:"source_type"`
+	Image                *string              `json:"image"`
+	ImageTag             string               `json:"image_tag"`
+	RepositoryURL        *string              `json:"repository_url"`
+	RepositoryBranch     string               `json:"repository_branch"`
+	GitAuthType          string               `json:"git_auth_type"`
+	Port                 int                  `json:"port"`
+	MinScale             int                  `json:"min_scale"`
+	MaxScale             int                  `json:"max_scale"`
+	EnvironmentVariables environmentVariables `json:"environment_variables"`
+	URL                  string               `json:"url"`
+	CreatedAt            string               `json:"created_at"`
+	UpdatedAt            string               `json:"updated_at"`
 
 	// MonthlyCost is not a container column. It is the sibling `monthly_cost`
 	// field (current_month_cost_cents / 100) the show endpoint returns
@@ -38,6 +80,7 @@ type ServerlessContainer struct {
 // CreateServerlessRequest represents a request to create a serverless container
 type CreateServerlessRequest struct {
 	Name                 string            `json:"name"`
+	Slug                 string            `json:"slug"`
 	DeploymentType       string            `json:"deployment_type"`
 	ResourceProfile      string            `json:"resource_profile,omitempty"`
 	Image                string            `json:"image,omitempty"`
@@ -55,18 +98,18 @@ type CreateServerlessRequest struct {
 
 // UpdateServerlessRequest represents a request to update a serverless container
 type UpdateServerlessRequest struct {
-	ResourceProfile      string            `json:"resource_profile,omitempty"`
-	Image                string            `json:"image,omitempty"`
-	ImageTag             string            `json:"image_tag,omitempty"`
-	RepositoryURL        string            `json:"repository_url,omitempty"`
-	RepositoryBranch     string            `json:"repository_branch,omitempty"`
-	SourceType           string            `json:"source_type,omitempty"`
-	GitAuthType          string            `json:"git_auth_type,omitempty"`
-	GitCredentials       string            `json:"git_credentials,omitempty"`
-	Port                 int               `json:"port,omitempty"`
-	MinScale             *int              `json:"min_scale,omitempty"`
-	MaxScale             *int              `json:"max_scale,omitempty"`
-	EnvironmentVariables map[string]string `json:"environment_variables,omitempty"`
+	Name                 string             `json:"name,omitempty"`
+	ResourceProfile      string             `json:"resource_profile,omitempty"`
+	Image                string             `json:"image,omitempty"`
+	ImageTag             string             `json:"image_tag,omitempty"`
+	RepositoryURL        string             `json:"repository_url,omitempty"`
+	RepositoryBranch     string             `json:"repository_branch,omitempty"`
+	SourceType           string             `json:"source_type,omitempty"`
+	GitAuthType          string             `json:"git_auth_type,omitempty"`
+	Port                 int                `json:"port,omitempty"`
+	MinScale             *int               `json:"min_scale,omitempty"`
+	MaxScale             *int               `json:"max_scale,omitempty"`
+	EnvironmentVariables *map[string]string `json:"environment_variables,omitempty"`
 }
 
 type createServerlessResponse struct {
@@ -75,9 +118,9 @@ type createServerlessResponse struct {
 }
 
 type showServerlessResponse struct {
-	Container   ServerlessContainer `json:"container"`
-	URL         string              `json:"url"`
-	MonthlyCost float64             `json:"monthly_cost"`
+	Container   ServerlessContainer   `json:"container"`
+	URL         string                `json:"url"`
+	MonthlyCost serverlessMonthlyCost `json:"monthly_cost"`
 }
 
 type listServerlessResponse struct {
@@ -102,7 +145,7 @@ func (c *Client) GetServerless(ctx context.Context, id string) (*ServerlessConta
 	}
 	container := resp.Container
 	container.URL = resp.URL
-	container.MonthlyCost = resp.MonthlyCost
+	container.MonthlyCost = float64(resp.MonthlyCost)
 	return &container, nil
 }
 
@@ -147,6 +190,33 @@ func (c *Client) GetServerlessStatus(ctx context.Context, id string) (string, er
 		return "", err
 	}
 	return container.Status, nil
+}
+
+// WaitForServerlessGeneration waits for the rollout caused by this write, not a
+// previous revision that is still reported as running immediately after it.
+func (c *Client) WaitForServerlessGeneration(ctx context.Context, id string, generation int) error {
+	if generation < 1 {
+		return fmt.Errorf("serverless container %s did not report a spec generation", id)
+	}
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	for {
+		container, err := c.GetServerless(ctx, id)
+		if err != nil {
+			return fmt.Errorf("checking serverless rollout: %w", err)
+		}
+		if container.ObservedGeneration >= generation && container.StatusDetails.Operation.Terminal {
+			if container.StatusDetails.Summary == "ready" {
+				return nil
+			}
+			return fmt.Errorf("serverless container %s rollout %d ended %s", id, generation, container.StatusDetails.Summary)
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for serverless container %s rollout %d: %w", id, generation, ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 // WaitForServerlessStatus waits for a serverless container to reach a target status
@@ -202,6 +272,13 @@ func (c *Client) WaitForServerlessDeletion(ctx context.Context, id string, timeo
 	defer ticker.Stop()
 
 	for {
+		_, err := c.GetServerless(ctx, id)
+		if err != nil {
+			if IsNotFound(err) {
+				return nil
+			}
+			return fmt.Errorf("error checking serverless container: %w", err)
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -210,13 +287,6 @@ func (c *Client) WaitForServerlessDeletion(ctx context.Context, id string, timeo
 				return fmt.Errorf("timeout waiting for serverless container %s to be deleted", id)
 			}
 
-			_, err := c.GetServerless(ctx, id)
-			if err != nil {
-				if IsNotFound(err) {
-					return nil
-				}
-				return fmt.Errorf("error checking serverless container: %w", err)
-			}
 		}
 	}
 }

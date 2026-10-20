@@ -22,21 +22,29 @@ type VpssDataSourceModel struct {
 }
 
 type VpsInstanceModel struct {
-	ID                types.String  `tfsdk:"id"`
-	Name              types.String  `tfsdk:"name"`
-	Status            types.String  `tfsdk:"status"`
-	Image             types.String  `tfsdk:"image"`
-	Datacenter        types.String  `tfsdk:"datacenter"`
-	ResourceProfile   types.String  `tfsdk:"resource_profile"`
-	CPUAllocationType types.String  `tfsdk:"cpu_allocation_type"`
-	CPUCores          types.Int64   `tfsdk:"cpu_cores"`
-	MemorySizeGB      types.Int64   `tfsdk:"memory_size_gb"`
-	StorageSizeGB     types.Int64   `tfsdk:"storage_size_gb"`
-	PublicIP          types.String  `tfsdk:"public_ip"`
-	PrivateIP         types.String  `tfsdk:"private_ip"`
-	IPv6Address       types.String  `tfsdk:"ipv6_address"`
-	MonthlyCost       types.Float64 `tfsdk:"monthly_cost"`
-	CreatedAt         types.String  `tfsdk:"created_at"`
+	ID                      types.String  `tfsdk:"id"`
+	Name                    types.String  `tfsdk:"name"`
+	Status                  types.String  `tfsdk:"status"`
+	StatusLabel             types.String  `tfsdk:"status_label"`
+	VNCAccessURL            types.String  `tfsdk:"vnc_access_url"`
+	TeamID                  types.Int64   `tfsdk:"team_id"`
+	UserID                  types.Int64   `tfsdk:"user_id"`
+	Image                   types.String  `tfsdk:"image"`
+	Datacenter              types.String  `tfsdk:"datacenter"`
+	ResourceProfile         types.String  `tfsdk:"resource_profile"`
+	CPUAllocationType       types.String  `tfsdk:"cpu_allocation_type"`
+	CPUPlatform             types.String  `tfsdk:"cpu_platform"`
+	NetworkTier             types.String  `tfsdk:"network_tier"`
+	PrimaryIPv4FloatingIPID types.String  `tfsdk:"primary_ipv4_floating_ip_id"`
+	PrimaryIPv6FloatingIPID types.String  `tfsdk:"primary_ipv6_floating_ip_id"`
+	CPUCores                types.Int64   `tfsdk:"cpu_cores"`
+	MemorySizeGB            types.Int64   `tfsdk:"memory_size_gb"`
+	StorageSizeGB           types.Int64   `tfsdk:"storage_size_gb"`
+	PublicIP                types.String  `tfsdk:"public_ip"`
+	PrivateIP               types.String  `tfsdk:"private_ip"`
+	IPv6Address             types.String  `tfsdk:"ipv6_address"`
+	MonthlyCost             types.Float64 `tfsdk:"monthly_cost"`
+	CreatedAt               types.String  `tfsdk:"created_at"`
 }
 
 func NewVpssDataSource() datasource.DataSource {
@@ -68,6 +76,10 @@ func (d *VpssDataSource) Schema(ctx context.Context, req datasource.SchemaReques
 							Description: "Current status of the VPS instance.",
 							Computed:    true,
 						},
+						"status_label":   schema.StringAttribute{Description: "Human-readable VPS status.", Computed: true},
+						"vnc_access_url": schema.StringAttribute{Description: "VNC access URL when available.", Computed: true},
+						"team_id":        schema.Int64Attribute{Description: "Owning project ID.", Computed: true},
+						"user_id":        schema.Int64Attribute{Description: "Owning user ID.", Computed: true},
 						"image": schema.StringAttribute{
 							Description: "Operating system image.",
 							Computed:    true,
@@ -84,6 +96,10 @@ func (d *VpssDataSource) Schema(ctx context.Context, req datasource.SchemaReques
 							Description: "CPU allocation type (shared or dedicated).",
 							Computed:    true,
 						},
+						"cpu_platform":                schema.StringAttribute{Description: "Processor platform.", Computed: true},
+						"network_tier":                schema.StringAttribute{Description: "Network tier.", Computed: true},
+						"primary_ipv4_floating_ip_id": schema.StringAttribute{Description: "Reserved primary Floating IPv4 ID.", Computed: true},
+						"primary_ipv6_floating_ip_id": schema.StringAttribute{Description: "Reserved primary Floating IPv6 ID.", Computed: true},
 						"cpu_cores": schema.Int64Attribute{
 							Description: "Number of CPU cores.",
 							Computed:    true,
@@ -163,15 +179,38 @@ func (d *VpssDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 			ID:                types.StringValue(inst.ID),
 			Name:              types.StringValue(inst.Name),
 			Status:            types.StringValue(inst.Status),
+			StatusLabel:       types.StringValue(inst.StatusLabel),
+			TeamID:            types.Int64Value(int64(inst.TeamID)),
+			UserID:            types.Int64Value(int64(inst.UserID)),
 			Image:             types.StringValue(inst.Image),
 			Datacenter:        types.StringValue(inst.Datacenter),
 			ResourceProfile:   types.StringValue(inst.ResourceProfile),
 			CPUAllocationType: types.StringValue(inst.CPUAllocationType),
+			CPUPlatform:       types.StringValue(inst.CPUPlatform),
+			NetworkTier:       types.StringValue(inst.NetworkTier),
 			CPUCores:          types.Int64Value(int64(inst.CPUCores)),
 			MemorySizeGB:      types.Int64Value(int64(inst.MemorySizeGB)),
 			StorageSizeGB:     types.Int64Value(int64(inst.StorageSizeGB)),
 			MonthlyCost:       types.Float64Value(inst.MonthlyCost),
 			CreatedAt:         types.StringValue(inst.CreatedAt),
+		}
+		if inst.VNCAccessURL != nil {
+			data.Instances[i].VNCAccessURL = types.StringValue(*inst.VNCAccessURL)
+		} else {
+			data.Instances[i].VNCAccessURL = types.StringNull()
+		}
+		if inst.CPUPlatform == "" {
+			data.Instances[i].CPUPlatform = types.StringNull()
+		}
+		if inst.PrimaryIPv4FloatingIPID != nil {
+			data.Instances[i].PrimaryIPv4FloatingIPID = types.StringValue(*inst.PrimaryIPv4FloatingIPID)
+		} else {
+			data.Instances[i].PrimaryIPv4FloatingIPID = types.StringNull()
+		}
+		if inst.PrimaryIPv6FloatingIPID != nil {
+			data.Instances[i].PrimaryIPv6FloatingIPID = types.StringValue(*inst.PrimaryIPv6FloatingIPID)
+		} else {
+			data.Instances[i].PrimaryIPv6FloatingIPID = types.StringNull()
 		}
 		if inst.PublicIP != nil {
 			data.Instances[i].PublicIP = types.StringValue(*inst.PublicIP)

@@ -275,10 +275,13 @@ func (r *ParameterGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	name := data.Name.ValueString()
+	parameters := stringMapToInterface(paramMap)
 	updateReq := client.UpdateParameterGroupRequest{
-		Name:             &name,
-		Parameters:       stringMapToInterface(paramMap),
-		LockedParameters: locked,
+		Name:       &name,
+		Parameters: &parameters,
+	}
+	if locked != nil {
+		updateReq.LockedParameters = &locked
 	}
 
 	if !data.Description.IsNull() && !data.Description.IsUnknown() {

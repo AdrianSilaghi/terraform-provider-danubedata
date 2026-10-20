@@ -12,6 +12,7 @@ Manages a serverless container with automatic scaling and scale-to-zero support.
 ```hcl
 resource "danubedata_serverless" "nginx" {
   name            = "my-nginx"
+  slug            = "my-nginx"
   deployment_type = "docker_image"
   image           = "nginx"
   image_tag       = "1.27"
@@ -30,6 +31,7 @@ output "app_url" {
 ```hcl
 resource "danubedata_serverless" "app" {
   name              = "my-app"
+  slug              = "my-app"
   deployment_type   = "git_repository"
   repository_url    = "https://github.com/user/my-app"
   repository_branch = "main"
@@ -50,6 +52,7 @@ resource "danubedata_serverless" "app" {
 ```hcl
 resource "danubedata_serverless" "private" {
   name            = "internal-api"
+  slug            = "internal-api"
   deployment_type = "git_repository"
   repository_url  = "git@github.com:acme/internal-api.git"
   source_type     = "dockerfile"
@@ -64,6 +67,7 @@ resource "danubedata_serverless" "private" {
 ```hcl
 resource "danubedata_serverless" "api" {
   name             = "api-server"
+  slug             = "api-server"
   resource_profile = "medium"
   deployment_type  = "docker_image"
   image            = "myregistry/api"
@@ -84,6 +88,7 @@ resource "danubedata_serverless" "api" {
 ```hcl
 resource "danubedata_serverless" "webhook" {
   name            = "webhook-handler"
+  slug            = "webhook-handler"
   deployment_type = "docker_image"
   image           = "myregistry/webhook"
   port            = 8080
@@ -96,22 +101,22 @@ resource "danubedata_serverless" "webhook" {
 
 ### Required
 
-* `name` - Name of the serverless container. Changing this forces a new
-  resource.
+* `name` - Name of the serverless container. Can be changed in place.
+* `slug` - DNS label, unique within the project. Changing this replaces the
+  container.
 * `deployment_type` - Deployment type. One of:
   - `docker_image` - deploy a pre-built image
   - `git_repository` - build from a Git repository
-  - `zip_upload` - build from an uploaded ZIP archive
 
-  Changing this forces a new resource. See [Notes](#notes) regarding
-  `zip_upload`.
+  Changing this forces a new resource. Upload ZIP archives with the `danube`
+  CLI; this resource has no archive upload transport.
 
 ### Optional
 
-* `resource_profile` - Resource profile: `free`, `small`, `medium`, or `large`.
+* `resource_profile` - Resource profile: `free`, `micro`, `small`, `medium`, or `large`.
   Defaults to `small`. For current pricing see <https://danubedata.ro/pricing>.
 * `image` - Container image reference without a tag, e.g. `nginx`. Required for
-  `docker_image` deployments. Ignored for `git_repository` and `zip_upload` —
+  `docker_image` deployments. Ignored for `git_repository` —
   the platform builds the image and sets this itself.
 * `image_tag` - Image tag to deploy. Defaults to `latest`.
 * `repository_url` - Git repository URL. Required for `git_repository`
@@ -119,21 +124,22 @@ resource "danubedata_serverless" "webhook" {
 * `repository_branch` - Git branch to build and deploy. Defaults to `main`.
   Only applies to `git_repository` deployments.
 * `source_type` - How to build the container from source: `dockerfile` or
-  `buildpack`. Required for `git_repository` deployments; defaults to
-  `dockerfile` for `zip_upload`.
+  `buildpack`. Required for `git_repository` deployments.
 * `git_auth_type` - Git authentication method for private repositories:
   `none`, `ssh_key`, or `access_token`. Defaults to `none`. Only applies to
   `git_repository` deployments.
 * `git_credentials` - SSH private key or access token for private repository
   access. Required when `git_auth_type` is `ssh_key` or `access_token`.
-  Sensitive, and never returned by the API — see [Notes](#notes).
+  Sensitive, and never returned by the API. Changing or removing it replaces
+  the container because the update API ignores credential changes.
 * `port` - Port the container listens on. Between 1 and 65535. Defaults to
   `8080`.
 * `min_scale` - Minimum number of instances, between 0 and 100. Defaults to
   `0` (scale to zero).
 * `max_scale` - Maximum number of instances, between 1 and 100. Defaults to
   `10`.
-* `environment_variables` - Map of environment variables.
+* `environment_variables` - Map of environment variables. Sensitive in
+  Terraform output, though the values remain in Terraform state.
 
 ### Timeouts
 
@@ -162,22 +168,25 @@ terraform import danubedata_serverless.example 7b3f5a92-1c4e-4a08-9d76-3e5c8f1b2
 ```
 
 `git_credentials` is never returned by the API, so it is not populated on
-import. Set it in configuration to have the provider send it on the next apply.
+import. Setting it later replaces the container so creation can store it.
 
 ## Notes
 
-- Only `name` and `deployment_type` force replacement. Everything else,
+- `slug`, `deployment_type`, and `git_credentials` force replacement. Everything else,
   including `resource_profile`, `image`, `repository_url` and scaling bounds,
   is updated in place.
 - The provider validates `deployment_type` locally, but the per-type
   requirements (for example `image` on `docker_image`, or `repository_url` and
   `source_type` on `git_repository`) are enforced by the API and surface as
   apply-time errors.
-- `zip_upload` is accepted by `deployment_type`, but the provider exposes no
-  attribute for the archive itself — the ZIP must be supplied out of band. It
-  cannot be driven end to end from Terraform alone.
+- Existing ZIP containers remain readable through the
+  `danubedata_serverless_containers` data source. Terraform does not create ZIP
+  deployments; use the `danube` CLI to upload the archive.
 - The provider acts on the API token owner's current team. If you belong to
   multiple teams, confirm the active team before your first apply.
+- Create and update wait for the generation returned by the API to finish and
+  report `ready`. A previously ready revision does not count as success for a
+  new rollout.
 
 ## Scaling Behavior
 

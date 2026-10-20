@@ -44,4 +44,4 @@ deps:
 
 .PHONY: docs
 docs:
-	go generate ./...
+	@echo "Documentation is maintained by hand in docs/. Update matching resource/data source pages and examples when changing a schema."

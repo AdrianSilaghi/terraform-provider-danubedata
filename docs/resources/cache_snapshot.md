@@ -72,6 +72,8 @@ In addition to the arguments above, the following are exported:
 * `status` - Current status. `creating` while in progress, `ready` when
   complete.
 * `size_mb` - Size of the snapshot in MB.
+* `size_bytes` - Exact size in bytes, or null while unknown.
+* `size_basis` - How size was measured (`stored`, `uploaded`, or `captured`), or null while unknown.
 * `created_at` / `updated_at` - Timestamps.
 
 ## Import

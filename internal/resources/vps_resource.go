@@ -33,30 +33,42 @@ type VpsResource struct {
 }
 
 type VpsResourceModel struct {
-	ID                types.String   `tfsdk:"id"`
-	Name              types.String   `tfsdk:"name"`
-	Status            types.String   `tfsdk:"status"`
-	ResourceProfile   types.String   `tfsdk:"resource_profile"`
-	CPUAllocationType types.String   `tfsdk:"cpu_allocation_type"`
-	Image             types.String   `tfsdk:"image"`
-	Datacenter        types.String   `tfsdk:"datacenter"`
-	NetworkStack      types.String   `tfsdk:"network_stack"`
-	AuthMethod        types.String   `tfsdk:"auth_method"`
-	SSHKeyID          types.String   `tfsdk:"ssh_key_id"`
-	Password          types.String   `tfsdk:"password"`
-	CustomCloudInit   types.String   `tfsdk:"custom_cloud_init"`
-	CPUCores          types.Int64    `tfsdk:"cpu_cores"`
-	MemorySizeGB      types.Int64    `tfsdk:"memory_size_gb"`
-	StorageSizeGB     types.Int64    `tfsdk:"storage_size_gb"`
-	PublicIP          types.String   `tfsdk:"public_ip"`
-	PrivateIP         types.String   `tfsdk:"private_ip"`
-	IPv6Address       types.String   `tfsdk:"ipv6_address"`
-	MonthlyCostCents  types.Int64    `tfsdk:"monthly_cost_cents"`
-	MonthlyCost       types.Float64  `tfsdk:"monthly_cost"`
-	DeployedAt        types.String   `tfsdk:"deployed_at"`
-	CreatedAt         types.String   `tfsdk:"created_at"`
-	UpdatedAt         types.String   `tfsdk:"updated_at"`
-	Timeouts          timeouts.Value `tfsdk:"timeouts"`
+	ID                      types.String   `tfsdk:"id"`
+	Name                    types.String   `tfsdk:"name"`
+	Status                  types.String   `tfsdk:"status"`
+	StatusLabel             types.String   `tfsdk:"status_label"`
+	VNCAccessURL            types.String   `tfsdk:"vnc_access_url"`
+	TeamID                  types.Int64    `tfsdk:"team_id"`
+	UserID                  types.Int64    `tfsdk:"user_id"`
+	CanBeStarted            types.Bool     `tfsdk:"can_be_started"`
+	CanBeStopped            types.Bool     `tfsdk:"can_be_stopped"`
+	CanBeRebooted           types.Bool     `tfsdk:"can_be_rebooted"`
+	CanBeDestroyed          types.Bool     `tfsdk:"can_be_destroyed"`
+	ResourceProfile         types.String   `tfsdk:"resource_profile"`
+	CPUAllocationType       types.String   `tfsdk:"cpu_allocation_type"`
+	CPUPlatform             types.String   `tfsdk:"cpu_platform"`
+	NetworkTier             types.String   `tfsdk:"network_tier"`
+	PrimaryIPv4FloatingIPID types.String   `tfsdk:"primary_ipv4_floating_ip_id"`
+	PrimaryIPv6FloatingIPID types.String   `tfsdk:"primary_ipv6_floating_ip_id"`
+	Image                   types.String   `tfsdk:"image"`
+	Datacenter              types.String   `tfsdk:"datacenter"`
+	NetworkStack            types.String   `tfsdk:"network_stack"`
+	AuthMethod              types.String   `tfsdk:"auth_method"`
+	SSHKeyID                types.String   `tfsdk:"ssh_key_id"`
+	Password                types.String   `tfsdk:"password"`
+	CustomCloudInit         types.String   `tfsdk:"custom_cloud_init"`
+	CPUCores                types.Int64    `tfsdk:"cpu_cores"`
+	MemorySizeGB            types.Int64    `tfsdk:"memory_size_gb"`
+	StorageSizeGB           types.Int64    `tfsdk:"storage_size_gb"`
+	PublicIP                types.String   `tfsdk:"public_ip"`
+	PrivateIP               types.String   `tfsdk:"private_ip"`
+	IPv6Address             types.String   `tfsdk:"ipv6_address"`
+	MonthlyCostCents        types.Int64    `tfsdk:"monthly_cost_cents"`
+	MonthlyCost             types.Float64  `tfsdk:"monthly_cost"`
+	DeployedAt              types.String   `tfsdk:"deployed_at"`
+	CreatedAt               types.String   `tfsdk:"created_at"`
+	UpdatedAt               types.String   `tfsdk:"updated_at"`
+	Timeouts                timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewVpsResource() resource.Resource {
@@ -79,7 +91,7 @@ func (r *VpsResource) Schema(ctx context.Context, req resource.SchemaRequest, re
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "Name of the VPS instance. Must be lowercase alphanumeric with hyphens.",
+				Description: "Name of the VPS instance (2-39 lowercase letters, digits or hyphens).",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -89,13 +101,21 @@ func (r *VpsResource) Schema(ctx context.Context, req resource.SchemaRequest, re
 						regexp.MustCompile(`^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$`),
 						"must be lowercase alphanumeric with hyphens, starting and ending with alphanumeric",
 					),
-					stringvalidator.LengthBetween(1, 255),
+					stringvalidator.LengthBetween(2, 39),
 				},
 			},
 			"status": schema.StringAttribute{
 				Description: "Current status of the VPS instance (pending, provisioning, running, stopped, error).",
 				Computed:    true,
 			},
+			"status_label":     schema.StringAttribute{Description: "Human-readable VPS status.", Computed: true},
+			"vnc_access_url":   schema.StringAttribute{Description: "VNC access URL when available.", Computed: true},
+			"team_id":          schema.Int64Attribute{Description: "Owning project ID.", Computed: true},
+			"user_id":          schema.Int64Attribute{Description: "Owning user ID.", Computed: true},
+			"can_be_started":   schema.BoolAttribute{Description: "Whether the VPS can currently be started.", Computed: true},
+			"can_be_stopped":   schema.BoolAttribute{Description: "Whether the VPS can currently be stopped.", Computed: true},
+			"can_be_rebooted":  schema.BoolAttribute{Description: "Whether the VPS can currently be rebooted.", Computed: true},
+			"can_be_destroyed": schema.BoolAttribute{Description: "Whether the VPS can currently be destroyed.", Computed: true},
 			"resource_profile": schema.StringAttribute{
 				Description: "Resource profile slug for the VPS (e.g. nano_shared, micro_shared). Determines cpu_cores, memory_size_gb, and storage_size_gb. Available slugs are dynamic and validated by the API.",
 				Optional:    true,
@@ -106,10 +126,31 @@ func (r *VpsResource) Schema(ctx context.Context, req resource.SchemaRequest, re
 				Description: "CPU allocation type: 'shared' or 'dedicated'.",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("shared"),
 				Validators: []validator.String{
 					stringvalidator.OneOf("shared", "dedicated"),
 				},
+			},
+			"cpu_platform": schema.StringAttribute{
+				Description:   "Processor platform (amd or intel). Required by the API; Intel supports dedicated plans only. Changing it replaces the VPS.",
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators:    []validator.String{stringvalidator.OneOf("amd", "intel")},
+			},
+			"network_tier": schema.StringAttribute{
+				Description: "Network tier (standard or 10g). The API validates 10g eligibility. Changing it replaces the VPS.",
+				Optional:    true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplaceIfConfigured()},
+				Validators:    []validator.String{stringvalidator.OneOf("standard", "10g")},
+			},
+			"primary_ipv4_floating_ip_id": schema.StringAttribute{
+				Description: "Reserved Floating IPv4 to use as the primary IPv4. Changing it replaces the VPS.",
+				Optional:    true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplaceIfConfigured()},
+			},
+			"primary_ipv6_floating_ip_id": schema.StringAttribute{
+				Description: "Reserved Floating IPv6 to use as the primary IPv6. Changing it replaces the VPS.",
+				Optional:    true, Computed: true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplaceIfConfigured()},
 			},
 			"image": schema.StringAttribute{
 				Description: "Operating system image (e.g., 'ubuntu-24.04', 'debian-12').",
@@ -275,6 +316,18 @@ func (r *VpsResource) Create(ctx context.Context, req resource.CreateRequest, re
 		Image:           data.Image.ValueString(),
 		Datacenter:      data.Datacenter.ValueString(),
 		AuthMethod:      data.AuthMethod.ValueString(),
+		CPUPlatform:     data.CPUPlatform.ValueString(),
+	}
+	if !data.NetworkTier.IsNull() && !data.NetworkTier.IsUnknown() {
+		createReq.NetworkTier = data.NetworkTier.ValueString()
+	}
+	if !data.PrimaryIPv4FloatingIPID.IsNull() && !data.PrimaryIPv4FloatingIPID.IsUnknown() {
+		id := data.PrimaryIPv4FloatingIPID.ValueString()
+		createReq.PrimaryIPv4FloatingIPID = &id
+	}
+	if !data.PrimaryIPv6FloatingIPID.IsNull() && !data.PrimaryIPv6FloatingIPID.IsUnknown() {
+		id := data.PrimaryIPv6FloatingIPID.ValueString()
+		createReq.PrimaryIPv6FloatingIPID = &id
 	}
 
 	if !data.CPUAllocationType.IsNull() && !data.CPUAllocationType.IsUnknown() {
@@ -317,6 +370,10 @@ func (r *VpsResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 
 	data.ID = types.StringValue(vps.ID)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), vps.ID)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	tflog.Info(ctx, "VPS instance created, waiting for running state", map[string]interface{}{
 		"id":   vps.ID,
@@ -417,9 +474,12 @@ func (r *VpsResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			return
 		}
 
-		// Wait for VPS to return to running state after update
-		tflog.Debug(ctx, "Waiting for VPS to reach running state after update")
-		err = r.client.WaitForVpsStatus(ctx, data.ID.ValueString(), "running", updateTimeout)
+		// A resized stopped VPS remains stopped.
+		targetStatus := "running"
+		if state.Status.ValueString() == "stopped" {
+			targetStatus = "stopped"
+		}
+		err = r.client.WaitForVpsStatus(ctx, data.ID.ValueString(), targetStatus, updateTimeout)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed waiting for VPS after update", err.Error())
 			return
@@ -564,13 +624,40 @@ func (r *VpsResource) mapVpsToState(vps *client.VpsInstance, data *VpsResourceMo
 	data.ID = types.StringValue(vps.ID)
 	data.Name = types.StringValue(vps.Name)
 	data.Status = types.StringValue(vps.Status)
+	data.StatusLabel = types.StringValue(vps.StatusLabel)
+	if vps.VNCAccessURL != nil {
+		data.VNCAccessURL = types.StringValue(*vps.VNCAccessURL)
+	} else {
+		data.VNCAccessURL = types.StringNull()
+	}
+	data.TeamID = types.Int64Value(int64(vps.TeamID))
+	data.UserID = types.Int64Value(int64(vps.UserID))
+	data.CanBeStarted = types.BoolValue(vps.CanBeStarted)
+	data.CanBeStopped = types.BoolValue(vps.CanBeStopped)
+	data.CanBeRebooted = types.BoolValue(vps.CanBeRebooted)
+	data.CanBeDestroyed = types.BoolValue(vps.CanBeDestroyed)
 	data.ResourceProfile = types.StringValue(vps.ResourceProfile)
+	if vps.CPUPlatform != "" {
+		data.CPUPlatform = types.StringValue(vps.CPUPlatform)
+	}
+	if vps.NetworkTier != "" {
+		data.NetworkTier = types.StringValue(vps.NetworkTier)
+	}
+	if vps.PrimaryIPv4FloatingIPID != nil {
+		data.PrimaryIPv4FloatingIPID = types.StringValue(*vps.PrimaryIPv4FloatingIPID)
+	} else {
+		data.PrimaryIPv4FloatingIPID = types.StringNull()
+	}
+	if vps.PrimaryIPv6FloatingIPID != nil {
+		data.PrimaryIPv6FloatingIPID = types.StringValue(*vps.PrimaryIPv6FloatingIPID)
+	} else {
+		data.PrimaryIPv6FloatingIPID = types.StringNull()
+	}
 	if vps.CPUAllocationType != "" {
 		data.CPUAllocationType = types.StringValue(vps.CPUAllocationType)
 	}
-	// Only set image if not already set (e.g., during import)
-	// The API returns the full image path, but users provide short IDs like "ubuntu-24.04"
-	if data.Image.IsNull() || data.Image.IsUnknown() {
+	// Preserve short IDs across image rebuilds, but expose a changed OS ID as drift.
+	if data.Image.IsNull() || data.Image.IsUnknown() || (data.Image.ValueString() != vps.Image && data.Image.ValueString() != extractImageID(vps.Image)) {
 		data.Image = types.StringValue(extractImageID(vps.Image))
 	}
 	data.Datacenter = types.StringValue(vps.Datacenter)
@@ -608,6 +695,8 @@ func (r *VpsResource) mapVpsToState(vps *client.VpsInstance, data *VpsResourceMo
 
 	if vps.SSHKeyID != nil {
 		data.SSHKeyID = types.StringValue(strconv.FormatInt(*vps.SSHKeyID, 10))
+	} else {
+		data.SSHKeyID = types.StringNull()
 	}
 }
 
@@ -631,5 +720,9 @@ func (r *VpsResource) fetchVpsPassword(ctx context.Context, id string, data *Vps
 		}
 		return
 	}
-	data.Password = types.StringValue(creds.Password)
+	if creds.Password == "" {
+		data.Password = types.StringNull()
+	} else {
+		data.Password = types.StringValue(creds.Password)
+	}
 }

@@ -75,5 +75,7 @@ This data source has no arguments.
   * `description` - Description of the snapshot.
   * `status` - Current status (`pending`, `creating`, `ready`, `failed`, `restoring`, `deleting`).
   * `vps_instance_id` - UUID of the VPS instance this snapshot belongs to.
-  * `size_gb` - Size of the snapshot in GB. May be fractional.
+  * `size_gb` - Size of the snapshot in GB, or null before it is measured. May be fractional.
+  * `size_bytes` / `size_basis` - Measured size and its basis when available.
+  * `expires_at` - Automatic deletion time when applicable.
   * `created_at` - Timestamp when the snapshot was created.

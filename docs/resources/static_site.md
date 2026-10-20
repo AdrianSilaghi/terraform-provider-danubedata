@@ -20,15 +20,6 @@ output "site_url" {
 }
 ```
 
-### Site on a Paid Plan
-
-```hcl
-resource "danubedata_static_site" "docs" {
-  name = "docs"
-  plan = "pro"
-}
-```
-
 ### Site with a Custom Domain
 
 ```hcl
@@ -50,8 +41,8 @@ resource "danubedata_static_site_domain" "www" {
 
 ### Optional
 
-* `plan` - Pricing plan for the site. One of `free`, `starter`, `pro`. Defaults
-  to `free`. Changing this forces a new resource — there is no update endpoint.
+* `plan` - Deprecated and ignored by the API. Retained for compatibility with
+  existing configurations; the project's Static Sites plan covers every site.
 
 ## Attribute Reference
 
@@ -73,10 +64,9 @@ terraform import danubedata_static_site.example 7c3e5a91-42bd-4f08-9a17-5d8b0c6e
 
 ## Notes
 
-- The API exposes no update operation for static sites. Both `name` and `plan`
-  force replacement, so a plan change is a destroy-and-recreate: the site's ID,
-  URL and any attached domains go with it. Change plans from the dashboard if
-  you need to keep the existing site.
+- The API exposes no update operation for static sites. Changing `name` replaces
+  the site and its attached domains. Manage the project's Static Sites plan
+  outside this resource.
 - Creating the resource does not publish content. Deploy with the `danube` CLI
   or from CI/CD after the site exists.
 - Custom domains are managed separately, with `danubedata_static_site_domain`.
