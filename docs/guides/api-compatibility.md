@@ -5,6 +5,19 @@ It was checked against the published [API schema](https://danubedata.ro/docs/api
 on 2026-10-20, danube-cli v1.8.0, and the API serializers and request validation
 where generated schema metadata was incomplete.
 
+## Upgrading to 0.4.0
+
+Set the provider constraint to `version = "~> 0.4"`, add the required fields
+listed below, and refresh the provider installation:
+
+```shell
+terraform init -upgrade
+terraform plan
+```
+
+Review the plan before applying, particularly changes that replace a resource.
+Protect or back up your Terraform state before upgrading.
+
 ## Configuration changes
 
 - Every `danubedata_vps` configuration must choose `cpu_platform = "amd"` or

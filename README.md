@@ -17,7 +17,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
@@ -28,10 +28,10 @@ terraform {
 ```bash
 git clone https://github.com/AdrianSilaghi/terraform-provider-danubedata.git
 cd terraform-provider-danubedata
-make install VERSION=0.3.5-dev
+make install VERSION=0.4.0-dev
 ```
 
-For local testing, set `version = "= 0.3.5-dev"` in `required_providers` to match
+For local testing, set `version = "= 0.4.0-dev"` in `required_providers` to match
 the installed build. This does not publish a provider release.
 
 ## Authentication
@@ -70,7 +70,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
@@ -170,7 +170,7 @@ See the [examples](examples/) directory for complete configuration examples:
 make build
 
 # Install to local Terraform plugins directory
-make install VERSION=0.3.5-dev
+make install VERSION=0.4.0-dev
 
 # Run tests
 make test

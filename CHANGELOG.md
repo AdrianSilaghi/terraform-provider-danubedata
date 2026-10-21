@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-21
+
+### Breaking changes
+
+- VPS configurations must set `cpu_platform`; serverless configurations must set `slug`.
+- Static-site domain `dns_instructions` is now a string. Existing domain state is migrated automatically.
+- Private Git credentials are rejected during planning because the API does not persist them. Existing private deployments can be imported without configuring credentials.
+- Building from source requires Go 1.26.10. See the [API compatibility guide](docs/guides/api-compatibility.md) before upgrading.
+
 ### Fixed
 
 - Align the existing resources with the current API and CLI contracts, including required VPS CPU platform and serverless slug, numeric parameter-group IDs, typed firewall sources and single ports, static-site domain DNS instructions, snapshot decimal sizes, and storage tags.
@@ -226,7 +235,8 @@ Unit-test fixtures were rewritten to encode the current API contract, so this cl
 - Example configurations for common use cases
 - Complete infrastructure example
 
-[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.1...v0.3.2

@@ -5,7 +5,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
