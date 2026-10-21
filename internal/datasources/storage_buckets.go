@@ -33,6 +33,12 @@ type StorageBucketModel struct {
 	PublicAccess      types.Bool    `tfsdk:"public_access"`
 	VersioningEnabled types.Bool    `tfsdk:"versioning_enabled"`
 	EncryptionEnabled types.Bool    `tfsdk:"encryption_enabled"`
+	EncryptionType    types.String  `tfsdk:"encryption_type"`
+	ObjectLockEnabled types.Bool    `tfsdk:"object_lock_enabled"`
+	ObjectLockMode    types.String  `tfsdk:"object_lock_default_retention_mode"`
+	ObjectLockDays    types.Int64   `tfsdk:"object_lock_default_retention_days"`
+	SizeLimitBytes    types.Int64   `tfsdk:"size_limit_bytes"`
+	Tags              types.Map     `tfsdk:"tags"`
 	SizeBytes         types.Int64   `tfsdk:"size_bytes"`
 	ObjectCount       types.Int64   `tfsdk:"object_count"`
 	MonthlyCost       types.Float64 `tfsdk:"monthly_cost"`
@@ -100,6 +106,12 @@ func (d *StorageBucketsDataSource) Schema(ctx context.Context, req datasource.Sc
 							Description: "Whether encryption is enabled.",
 							Computed:    true,
 						},
+						"encryption_type":                    schema.StringAttribute{Description: "Server-side encryption type.", Computed: true},
+						"object_lock_enabled":                schema.BoolAttribute{Description: "Whether Object Lock was enabled at creation.", Computed: true},
+						"object_lock_default_retention_mode": schema.StringAttribute{Description: "Default Object Lock retention mode.", Computed: true},
+						"object_lock_default_retention_days": schema.Int64Attribute{Description: "Default Object Lock retention days.", Computed: true},
+						"size_limit_bytes":                   schema.Int64Attribute{Description: "Bucket size quota in bytes.", Computed: true},
+						"tags":                               schema.MapAttribute{Description: "Bucket tags.", Computed: true, ElementType: types.StringType},
 						"size_bytes": schema.Int64Attribute{
 							Description: "Current size in bytes.",
 							Computed:    true,
@@ -169,10 +181,38 @@ func (d *StorageBucketsDataSource) Read(ctx context.Context, req datasource.Read
 			PublicAccess:      types.BoolValue(b.PublicAccess),
 			VersioningEnabled: types.BoolValue(b.VersioningEnabled),
 			EncryptionEnabled: types.BoolValue(b.EncryptionEnabled),
+			ObjectLockEnabled: types.BoolValue(b.ObjectLockEnabled),
 			SizeBytes:         types.Int64Value(b.SizeBytes),
 			ObjectCount:       types.Int64Value(int64(b.ObjectCount)),
 			MonthlyCost:       types.Float64Value(b.MonthlyCostDollars),
 			CreatedAt:         types.StringValue(b.CreatedAt),
+		}
+		if b.EncryptionType != nil {
+			data.Buckets[i].EncryptionType = types.StringValue(*b.EncryptionType)
+		} else {
+			data.Buckets[i].EncryptionType = types.StringNull()
+		}
+		if b.ObjectLockMode != nil {
+			data.Buckets[i].ObjectLockMode = types.StringValue(*b.ObjectLockMode)
+		} else {
+			data.Buckets[i].ObjectLockMode = types.StringNull()
+		}
+		if b.ObjectLockDays != nil {
+			data.Buckets[i].ObjectLockDays = types.Int64Value(*b.ObjectLockDays)
+		} else {
+			data.Buckets[i].ObjectLockDays = types.Int64Null()
+		}
+		if b.SizeLimitBytes != nil {
+			data.Buckets[i].SizeLimitBytes = types.Int64Value(*b.SizeLimitBytes)
+		} else {
+			data.Buckets[i].SizeLimitBytes = types.Int64Null()
+		}
+		if len(b.Tags) != 0 {
+			value, diags := types.MapValueFrom(ctx, types.StringType, map[string]string(b.Tags))
+			resp.Diagnostics.Append(diags...)
+			data.Buckets[i].Tags = value
+		} else {
+			data.Buckets[i].Tags = types.MapNull(types.StringType)
 		}
 		if b.DisplayName != nil {
 			data.Buckets[i].DisplayName = types.StringValue(*b.DisplayName)

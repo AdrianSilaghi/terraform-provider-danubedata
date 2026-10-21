@@ -31,7 +31,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
@@ -108,6 +108,7 @@ resource "danubedata_firewall" "web" {
 
 # Web Server VPS
 resource "danubedata_vps" "web" {
+  cpu_platform = "amd"
   name        = "${var.project_name}-web"
   image       = "ubuntu-24.04"
   datacenter  = var.datacenter
@@ -328,7 +329,12 @@ individually:
 
 ```hcl
 resource "danubedata_vps" "web" {
-  # ... existing config ...
+  cpu_platform = "amd"
+  name        = "web-server"
+  image       = "ubuntu-24.04"
+  datacenter  = "fsn1"
+  auth_method = "ssh_key"
+  ssh_key_id  = var.ssh_key_id
 
   resource_profile = "medium_shared" # upgraded from small_shared
 }

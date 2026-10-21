@@ -9,7 +9,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
@@ -27,6 +27,7 @@ resource "danubedata_ssh_key" "main" {
 
 # Create a VPS instance
 resource "danubedata_vps" "web" {
+  cpu_platform = "amd"
   name        = "web-server"
   image       = "ubuntu-24.04"
   datacenter  = "fsn1"
@@ -59,6 +60,20 @@ Then configure the provider without credentials:
 provider "danubedata" {}
 ```
 
+Pin the project for an account-wide token with `team_id`, or set
+`DANUBEDATA_TEAM_ID` to its positive integer ID:
+
+```hcl
+provider "danubedata" {
+  team_id = 123
+}
+```
+
+The provider sends this ID in `X-Team-Id` on every request. A token locked to a
+project can only address that project. Without an explicit ID, the API uses the
+token's project, or the account's current project for an account-wide token.
+SSH keys belong to the user and are shared across their projects.
+
 ### Provider Configuration
 
 You can also configure the token directly in the provider block (not recommended for production):
@@ -75,6 +90,7 @@ provider "danubedata" {
 
 - `api_token` (String, Sensitive) - API token for DanubeData authentication. Can also be set via `DANUBEDATA_API_TOKEN` environment variable.
 - `base_url` (String) - Base URL for the DanubeData API. Defaults to `https://danubedata.ro/api/v1`. Can also be set via `DANUBEDATA_BASE_URL` environment variable.
+- `team_id` (Number) - Positive integer project ID. Can also be set via `DANUBEDATA_TEAM_ID`. Explicit configuration takes precedence over the environment variable.
 
 ## Resources
 
@@ -152,7 +168,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
@@ -165,6 +181,7 @@ resource "danubedata_ssh_key" "main" {
 }
 
 resource "danubedata_vps" "example" {
+  cpu_platform = "amd"
   name        = "my-first-vps"
   image       = "ubuntu-24.04"
   datacenter  = "fsn1"
@@ -194,6 +211,7 @@ resource "danubedata_ssh_key" "deploy" {
 
 # Web Server VPS
 resource "danubedata_vps" "web" {
+  cpu_platform = "amd"
   name        = "web-server"
   image       = "ubuntu-24.04"
   datacenter  = "fsn1"
@@ -338,6 +356,7 @@ time. Resize by changing the profile.
 
 ```hcl
 resource "danubedata_vps" "web" {
+  cpu_platform = "amd"
   name             = "web-server"
   image            = "ubuntu-24.04"
   datacenter       = "fsn1"

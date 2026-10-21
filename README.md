@@ -5,7 +5,7 @@ The DanubeData Terraform provider allows you to manage [DanubeData](https://danu
 ## Requirements
 
 - [Terraform](https://www.terraform.io/downloads.html) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.21 (for building from source)
+- [Go](https://go.dev/doc/install) >= 1.26.10 (for building from source)
 - A DanubeData account and API token
 
 ## Installation
@@ -17,7 +17,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
@@ -28,8 +28,11 @@ terraform {
 ```bash
 git clone https://github.com/AdrianSilaghi/terraform-provider-danubedata.git
 cd terraform-provider-danubedata
-make install
+make install VERSION=0.4.0-dev
 ```
+
+For local testing, set `version = "= 0.4.0-dev"` in `required_providers` to match
+the installed build. This does not publish a provider release.
 
 ## Authentication
 
@@ -39,6 +42,17 @@ The provider requires an API token for authentication. You can provide it in sev
 
 ```bash
 export DANUBEDATA_API_TOKEN="your-api-token"
+```
+
+For an account-wide token, pin the project with `DANUBEDATA_TEAM_ID` or a
+`team_id` provider argument. The provider sends `X-Team-Id` on every request.
+Without it, requests use the token's project or the account's current project.
+A project-locked token cannot select another project.
+
+```hcl
+provider "danubedata" {
+  team_id = 123
+}
 ```
 
 ### Provider Configuration
@@ -56,7 +70,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
@@ -71,6 +85,7 @@ resource "danubedata_ssh_key" "example" {
 
 # Create a VPS instance
 resource "danubedata_vps" "example" {
+  cpu_platform = "amd"
   name        = "my-server"
   image       = "ubuntu-22.04"
   datacenter  = "fsn1"
@@ -144,7 +159,7 @@ See the [examples](examples/) directory for complete configuration examples:
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.26.10+
 - Terraform 1.0+
 - Make
 
@@ -155,10 +170,13 @@ See the [examples](examples/) directory for complete configuration examples:
 make build
 
 # Install to local Terraform plugins directory
-make install
+make install VERSION=0.4.0-dev
 
 # Run tests
 make test
+
+# Run tests with coverage
+make test-coverage
 
 # Run acceptance tests (requires API token)
 make testacc
@@ -179,6 +197,9 @@ The pages under `docs/` are maintained by hand — there are no `tfplugindocs`
 templates and no `//go:generate` directives behind them. Edit the relevant
 Markdown file directly and keep it in step with the provider schema; running a
 generator over `docs/` would discard the hand-written content.
+
+See [API compatibility](docs/guides/api-compatibility.md) for migration notes,
+contract sources, and the limits of offline verification.
 
 To check a schema claim against the current build:
 

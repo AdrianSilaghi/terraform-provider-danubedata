@@ -5,11 +5,14 @@ import (
 	"fmt"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -28,9 +31,11 @@ type SshKeyResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	PublicKey   types.String `tfsdk:"public_key"`
+	IsDefault   types.Bool   `tfsdk:"is_default"`
 	Fingerprint types.String `tfsdk:"fingerprint"`
 	CreatedAt   types.String `tfsdk:"created_at"`
 	UpdatedAt   types.String `tfsdk:"updated_at"`
+	UserID      types.Int64  `tfsdk:"user_id"`
 }
 
 func NewSshKeyResource() resource.Resource {
@@ -53,8 +58,10 @@ func (r *SshKeyResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "A descriptive name for the SSH key.",
-				Required:    true,
+				Description:   "A descriptive name for the SSH key.",
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators:    []validator.String{stringvalidator.LengthBetween(1, 255)},
 			},
 			"public_key": schema.StringAttribute{
 				Description: "The SSH public key in OpenSSH format (e.g., 'ssh-rsa AAAA...' or 'ssh-ed25519 AAAA...').",
@@ -62,6 +69,12 @@ func (r *SshKeyResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{stringvalidator.LengthAtMost(8192)},
+			},
+			"is_default": schema.BoolAttribute{
+				Description: "Make this your default SSH key at creation. Changing it replaces the key.",
+				Optional:    true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.RequiresReplaceIfConfigured()},
 			},
 			"fingerprint": schema.StringAttribute{
 				Description: "The SHA256 fingerprint of the SSH key.",
@@ -75,6 +88,7 @@ func (r *SshKeyResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				Description: "Timestamp when the SSH key was last updated.",
 				Computed:    true,
 			},
+			"user_id": schema.Int64Attribute{Description: "Owning user ID.", Computed: true},
 		},
 	}
 }
@@ -110,6 +124,7 @@ func (r *SshKeyResource) Create(ctx context.Context, req resource.CreateRequest,
 	createReq := client.CreateSshKeyRequest{
 		Name:      data.Name.ValueString(),
 		PublicKey: data.PublicKey.ValueString(),
+		IsDefault: data.IsDefault.ValueBool(),
 	}
 
 	sshKey, err := r.client.CreateSshKey(ctx, createReq)
@@ -200,7 +215,9 @@ func (r *SshKeyResource) mapSshKeyToState(sshKey *client.SshKey, data *SshKeyRes
 	data.ID = types.StringValue(fmt.Sprintf("%d", sshKey.ID))
 	data.Name = types.StringValue(sshKey.Name)
 	data.PublicKey = types.StringValue(sshKey.PublicKey)
+	data.IsDefault = types.BoolValue(sshKey.IsDefault)
 	data.Fingerprint = types.StringValue(sshKey.Fingerprint)
 	data.CreatedAt = types.StringValue(sshKey.CreatedAt)
 	data.UpdatedAt = types.StringValue(sshKey.UpdatedAt)
+	data.UserID = types.Int64Value(int64(sshKey.UserID))
 }

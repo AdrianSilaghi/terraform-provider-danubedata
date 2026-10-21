@@ -87,18 +87,18 @@ func (c *Client) FindDatabaseReplica(ctx context.Context, instanceID string, rep
 
 // WaitForDatabaseReplicaReady waits for a replica to become ready.
 func (c *Client) WaitForDatabaseReplicaReady(ctx context.Context, instanceID string, replicaIndex int, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	tick := time.After(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for database replica %s:%d to become ready", instanceID, replicaIndex)
-			}
+		case <-tick:
+			tick = ticker.C
 			replica, err := c.FindDatabaseReplica(ctx, instanceID, replicaIndex)
 			if err != nil {
 				if IsNotFound(err) {

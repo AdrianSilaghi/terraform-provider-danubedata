@@ -1,27 +1,40 @@
 package client
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 )
 
+type ParameterValues map[string]interface{}
+
+func (p *ParameterValues) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if bytes.Equal(data, []byte("[]")) || bytes.Equal(data, []byte("null")) {
+		*p = ParameterValues{}
+		return nil
+	}
+	return json.Unmarshal(data, (*map[string]interface{})(p))
+}
+
 // ParameterGroup represents a cache/database/queue parameter group.
 type ParameterGroup struct {
-	ID               int                    `json:"id"`
-	Name             string                 `json:"name"`
-	Type             string                 `json:"type"`
-	ProviderType     string                 `json:"provider_type"`
-	Family           *string                `json:"family"`
-	Description      *string                `json:"description"`
-	Parameters       map[string]interface{} `json:"parameters"`
-	LockedParameters []string               `json:"locked_parameters"`
-	TeamID           *int                   `json:"team_id"`
-	IsDefault        bool                   `json:"is_default"`
-	IsActive         bool                   `json:"is_active"`
-	IsSystem         bool                   `json:"is_system"`
-	CreatedAt        *string                `json:"created_at"`
-	UpdatedAt        *string                `json:"updated_at"`
+	ID               int             `json:"id"`
+	Name             string          `json:"name"`
+	Type             string          `json:"type"`
+	ProviderType     string          `json:"provider_type"`
+	Family           *string         `json:"family"`
+	Description      *string         `json:"description"`
+	Parameters       ParameterValues `json:"parameters"`
+	LockedParameters []string        `json:"locked_parameters"`
+	TeamID           *int            `json:"team_id"`
+	IsDefault        bool            `json:"is_default"`
+	IsActive         bool            `json:"is_active"`
+	IsSystem         bool            `json:"is_system"`
+	CreatedAt        *string         `json:"created_at"`
+	UpdatedAt        *string         `json:"updated_at"`
 }
 
 // CreateParameterGroupRequest is the payload for creating a parameter group.
@@ -39,12 +52,12 @@ type CreateParameterGroupRequest struct {
 // UpdateParameterGroupRequest is the payload for updating a parameter group.
 // Nil pointers mean "don't update"; non-nil means "set to this value".
 type UpdateParameterGroupRequest struct {
-	Name             *string                `json:"name,omitempty"`
-	Description      *string                `json:"description,omitempty"`
-	Parameters       map[string]interface{} `json:"parameters,omitempty"`
-	LockedParameters []string               `json:"locked_parameters,omitempty"`
-	IsDefault        *bool                  `json:"is_default,omitempty"`
-	IsActive         *bool                  `json:"is_active,omitempty"`
+	Name             *string                 `json:"name,omitempty"`
+	Description      *string                 `json:"description,omitempty"`
+	Parameters       *map[string]interface{} `json:"parameters,omitempty"`
+	LockedParameters *[]string               `json:"locked_parameters,omitempty"`
+	IsDefault        *bool                   `json:"is_default,omitempty"`
+	IsActive         *bool                   `json:"is_active,omitempty"`
 }
 
 // ListParameterGroupsOptions filters parameter group listings.

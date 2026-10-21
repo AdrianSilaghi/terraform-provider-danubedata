@@ -30,6 +30,22 @@ resource "danubedata_storage_access_key" "temporary" {
 }
 ```
 
+### Key Limited to One Bucket
+
+```hcl
+resource "danubedata_storage_access_key" "reader" {
+  name  = "backup-reader"
+  scope = "buckets"
+  bucket_permissions = {
+    (danubedata_storage_bucket.backups.id) = "read"
+  }
+}
+```
+
+Set `scope = "none"` for a key that receives access only through bucket policies.
+The provider checks the created scope and permissions before storing the secret;
+if the API returns broader access, it attempts to revoke the new key and fails.
+
 ### Using with AWS Provider for S3 Operations
 
 ```hcl
@@ -71,12 +87,16 @@ resource "aws_s3_object" "example" {
 
 ### Required
 
-* `name` - Name of the access key.
+* `name` - Name of the access key, 1-32 characters.
 
 ### Optional
 
 * `expires_at` - Expiration date for the access key, in ISO 8601 format.
   Omit for a key that does not expire.
+* `scope` - `team` (default, all team buckets), `buckets`, or `none`. Changing it replaces the key.
+* `bucket_permissions` - Map of bucket IDs to `read`, `readwrite`, or `full`.
+  Required with `scope = "buckets"` (1-50 entries) and empty with other scopes.
+  Changing permissions replaces the key.
 
 ## Attribute Reference
 
@@ -87,6 +107,7 @@ In addition to the arguments above, the following are exported:
 * `secret_access_key` - The S3 secret access key. Sensitive, and only available
   after creation.
 * `status` - Current status of the key (`active`, `revoked`).
+* `arn` - S3 principal ARN, when available.
 * `created_at` / `updated_at` - Timestamps.
 
 ~> **Note** `id` and `access_key_id` are different values. `id` identifies the
@@ -110,8 +131,10 @@ absent from state; to get a usable secret you must create a replacement key.
 - `secret_access_key` is stored in state. Protect your state file accordingly.
 - This resource does not declare `timeouts`; access keys are created and
   deleted synchronously.
-- The provider sends only `name` and `expires_at` when creating a key. It
-  exposes no attribute for per-bucket permissions, so the resulting key's scope
-  is whatever the API assigns by default.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- The API returns the secret only at creation. Refresh preserves that value in
+  existing Terraform state; import cannot recover it.
+- A `team` key reaches every bucket in the active team. For limited access use
+  `scope = "buckets"` and explicit permissions or `scope = "none"` with a bucket policy.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

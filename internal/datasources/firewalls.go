@@ -22,12 +22,15 @@ type FirewallsDataSourceModel struct {
 }
 
 type FirewallModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	Status      types.String `tfsdk:"status"`
-	RulesCount  types.Int64  `tfsdk:"rules_count"`
-	CreatedAt   types.String `tfsdk:"created_at"`
+	ID            types.String `tfsdk:"id"`
+	Name          types.String `tfsdk:"name"`
+	Description   types.String `tfsdk:"description"`
+	Status        types.String `tfsdk:"status"`
+	IsDefault     types.String `tfsdk:"is_default"`
+	IsSystem      types.Bool   `tfsdk:"is_system"`
+	DefaultAction types.String `tfsdk:"default_action"`
+	RulesCount    types.Int64  `tfsdk:"rules_count"`
+	CreatedAt     types.String `tfsdk:"created_at"`
 }
 
 func NewFirewallsDataSource() datasource.DataSource {
@@ -63,6 +66,9 @@ func (d *FirewallsDataSource) Schema(ctx context.Context, req datasource.SchemaR
 							Description: "Current status of the firewall.",
 							Computed:    true,
 						},
+						"is_default":     schema.StringAttribute{Description: "Default firewall marker.", Computed: true},
+						"is_system":      schema.BoolAttribute{Description: "Whether this is platform-managed.", Computed: true},
+						"default_action": schema.StringAttribute{Description: "Default firewall action.", Computed: true},
 						"rules_count": schema.Int64Attribute{
 							Description: "Number of rules in the firewall.",
 							Computed:    true,
@@ -114,13 +120,25 @@ func (d *FirewallsDataSource) Read(ctx context.Context, req datasource.ReadReque
 
 	data.Firewalls = make([]FirewallModel, len(firewalls))
 	for i, fw := range firewalls {
+		// The list response may omit rules; the show response includes them.
+		if fw.Rules == nil {
+			full, err := d.client.GetFirewall(ctx, fw.ID)
+			if err != nil {
+				resp.Diagnostics.AddError("Failed to read firewall rules", err.Error())
+				return
+			}
+			fw.Rules = full.Rules
+		}
 		data.Firewalls[i] = FirewallModel{
-			ID:          types.StringValue(fw.ID),
-			Name:        types.StringValue(fw.Name),
-			Description: types.StringValue(fw.Description),
-			Status:      types.StringValue(fw.Status),
-			RulesCount:  types.Int64Value(int64(len(fw.Rules))),
-			CreatedAt:   types.StringValue(fw.CreatedAt),
+			ID:            types.StringValue(fw.ID),
+			Name:          types.StringValue(fw.Name),
+			Description:   types.StringValue(fw.Description),
+			Status:        types.StringValue(fw.Status),
+			IsDefault:     types.StringValue(fw.IsDefault),
+			IsSystem:      types.BoolValue(fw.IsSystem),
+			DefaultAction: types.StringValue(fw.DefaultAction),
+			RulesCount:    types.Int64Value(int64(len(fw.Rules))),
+			CreatedAt:     types.StringValue(fw.CreatedAt),
 		}
 	}
 

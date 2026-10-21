@@ -2,8 +2,9 @@
 
 Lists available database providers (MySQL, PostgreSQL, MariaDB).
 
-This list is compiled into the provider rather than fetched from the API, so it
-does not reflect per-account availability.
+This list is compiled into the provider rather than fetched from the API, so
+numeric IDs and default versions are compatibility metadata, not a live engine
+catalog. The API validates engine and version at creation.
 
 ## Example Usage
 
@@ -51,5 +52,5 @@ This data source has no arguments.
   * `name` - Provider name (`MySQL`, `PostgreSQL`, `MariaDB`).
   * `type` - Provider type identifier (`mysql`, `postgresql`, `mariadb`). This is what the `danubedata_database` resource's `engine` argument expects.
   * `description` - Provider description.
-  * `version` - Default version.
+  * `version` - Compiled default version; check the API for current offerings.
   * `default_port` - Default port number.

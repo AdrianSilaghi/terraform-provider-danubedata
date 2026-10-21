@@ -94,6 +94,11 @@ func (d *ParameterGroupsDataSource) Configure(ctx context.Context, req datasourc
 }
 
 func (d *ParameterGroupsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	if d.client == nil {
+		resp.Diagnostics.AddError("Unconfigured Client", "Expected configured client.")
+		return
+	}
+
 	var data ParameterGroupsDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {

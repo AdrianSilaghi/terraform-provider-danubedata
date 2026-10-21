@@ -13,54 +13,72 @@ type DatabaseEngine struct {
 	Name string `json:"name"`
 }
 
+type DatabaseStorageAutoscalePolicy struct {
+	Enabled          bool `json:"enabled"`
+	ThresholdPercent int  `json:"threshold_percent"`
+	IncrementGiB     int  `json:"increment_gib"`
+}
+
 // DatabaseInstance represents a database instance from the API
 type DatabaseInstance struct {
-	ID                 string         `json:"id"`
-	Name               string         `json:"name"`
-	Status             string         `json:"status"`
-	StatusLabel        string         `json:"status_label"`
-	ResourceProfile    string         `json:"resource_profile"`
-	CPUCores           int            `json:"cpu_cores"`
-	MemorySizeMB       int            `json:"memory_size_mb"`
-	StorageSizeGB      int            `json:"storage_size_gb"`
-	DatabaseName       *string        `json:"database_name"`
-	Version            string         `json:"version"`
-	Engine             DatabaseEngine `json:"engine"`
-	Provider           Provider       `json:"provider"`
-	Datacenter         string         `json:"datacenter"`
-	Endpoint           *string        `json:"endpoint"`
-	Port               *int           `json:"port"`
-	Username           *string        `json:"username"`
-	ParameterGroupID   *string        `json:"parameter_group_id"`
-	MonthlyCostCents   int            `json:"monthly_cost_cents"`
-	MonthlyCostDollars float64        `json:"monthly_cost_dollars"`
-	DeployedAt         *string        `json:"deployed_at"`
-	CreatedAt          string         `json:"created_at"`
-	UpdatedAt          string         `json:"updated_at"`
-	TeamID             int            `json:"team_id"`
-	UserID             int            `json:"user_id"`
-	CanBeStarted       bool           `json:"can_be_started"`
-	CanBeStopped       bool           `json:"can_be_stopped"`
-	CanBeDestroyed     bool           `json:"can_be_destroyed"`
+	ID                     string                          `json:"id"`
+	Name                   string                          `json:"name"`
+	Status                 string                          `json:"status"`
+	StatusLabel            string                          `json:"status_label"`
+	ResourceProfile        string                          `json:"resource_profile"`
+	CPUCores               int                             `json:"cpu_cores"`
+	MemorySizeMB           int                             `json:"memory_size_mb"`
+	StorageSizeGB          int                             `json:"storage_size_gb"`
+	DatabaseName           *string                         `json:"database_name"`
+	Version                string                          `json:"version"`
+	Engine                 DatabaseEngine                  `json:"engine"`
+	Provider               Provider                        `json:"provider"`
+	Datacenter             string                          `json:"datacenter"`
+	NetworkTier            string                          `json:"network_tier"`
+	StorageAutoscalePolicy *DatabaseStorageAutoscalePolicy `json:"storage_autoscale_policy"`
+	Endpoint               *string                         `json:"endpoint"`
+	Port                   *int                            `json:"port"`
+	Username               *string                         `json:"username"`
+	ParameterGroupID       *string                         `json:"parameter_group_id"`
+	MonthlyCostCents       int                             `json:"monthly_cost_cents"`
+	MonthlyCostDollars     float64                         `json:"monthly_cost_dollars"`
+	DeployedAt             *string                         `json:"deployed_at"`
+	CreatedAt              string                          `json:"created_at"`
+	UpdatedAt              string                          `json:"updated_at"`
+	TeamID                 int                             `json:"team_id"`
+	UserID                 int                             `json:"user_id"`
+	CanBeStarted           bool                            `json:"can_be_started"`
+	CanBeStopped           bool                            `json:"can_be_stopped"`
+	CanBeDestroyed         bool                            `json:"can_be_destroyed"`
 }
 
 // CreateDatabaseRequest represents a request to create a database instance
 type CreateDatabaseRequest struct {
-	Name             string  `json:"name"`
-	Provider         string  `json:"provider"` // mysql, postgresql, mariadb
-	DatabaseName     string  `json:"database_name,omitempty"`
-	Version          string  `json:"version,omitempty"`
-	Datacenter       string  `json:"datacenter"`
-	ResourceProfile  string  `json:"resource_profile"`
-	ParameterGroupID *string `json:"parameter_group_id,omitempty"`
+	Name                             string            `json:"name"`
+	Provider                         string            `json:"provider"` // mysql, postgresql, mariadb
+	DatabaseName                     string            `json:"database_name,omitempty"`
+	Version                          string            `json:"version,omitempty"`
+	Datacenter                       string            `json:"datacenter"`
+	NetworkTier                      string            `json:"network_tier,omitempty"`
+	ResourceProfile                  string            `json:"resource_profile"`
+	ParameterGroupID                 *int              `json:"parameter_group_id,omitempty"`
+	Configuration                    map[string]string `json:"configuration,omitempty"`
+	StorageAutoscalingEnabled        *bool             `json:"storage_autoscaling_enabled,omitempty"`
+	StorageAutoscaleThresholdPercent *int              `json:"storage_autoscale_threshold_percent,omitempty"`
+	StorageAutoscaleIncrementGiB     *int              `json:"storage_autoscale_increment_gib,omitempty"`
 }
 
 // UpdateDatabaseRequest represents a request to update a database instance
 type UpdateDatabaseRequest struct {
-	Name             string  `json:"name,omitempty"`
-	ResourceProfile  string  `json:"resource_profile,omitempty"`
-	ParameterGroupID *string `json:"parameter_group_id,omitempty"`
-	StorageSizeGB    *int    `json:"storage_size_gb,omitempty"`
+	Name                             string             `json:"name,omitempty"`
+	ResourceProfile                  string             `json:"resource_profile,omitempty"`
+	ParameterGroupID                 **int              `json:"parameter_group_id,omitempty"`
+	StorageSizeGB                    *int               `json:"storage_size_gb,omitempty"`
+	Configuration                    *map[string]string `json:"configuration,omitempty"`
+	AutomatedSnapshotsEnabled        *bool              `json:"automated_snapshots_enabled,omitempty"`
+	StorageAutoscalingEnabled        *bool              `json:"storage_autoscaling_enabled,omitempty"`
+	StorageAutoscaleThresholdPercent *int               `json:"storage_autoscale_threshold_percent,omitempty"`
+	StorageAutoscaleIncrementGiB     *int               `json:"storage_autoscale_increment_gib,omitempty"`
 }
 
 type createDatabaseResponse struct {
@@ -164,7 +182,8 @@ func (c *Client) ListDatabases(ctx context.Context) ([]DatabaseInstance, error) 
 
 // WaitForDatabaseStatus waits for a database instance to reach a target status
 func (c *Client) WaitForDatabaseStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -189,10 +208,6 @@ func (c *Client) WaitForDatabaseStatus(ctx context.Context, id string, targetSta
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for database %s to reach status %s", id, targetStatus)
-			}
-
 			instance, err := c.GetDatabase(ctx, id)
 			if err != nil {
 				if IsNotFound(err) && targetStatus == "deleted" {
@@ -215,18 +230,18 @@ func (c *Client) WaitForDatabaseStatus(ctx context.Context, id string, targetSta
 
 // WaitForDatabaseDeletion waits for a database instance to be deleted
 func (c *Client) WaitForDatabaseDeletion(ctx context.Context, id string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	tick := time.After(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for database %s to be deleted", id)
-			}
+		case <-tick:
+			tick = ticker.C
 
 			_, err := c.GetDatabase(ctx, id)
 			if err != nil {

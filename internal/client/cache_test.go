@@ -70,6 +70,34 @@ func TestClient_CreateCache(t *testing.T) {
 	}
 }
 
+func TestClient_UpdateCache_ClearsOptionalSettings(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		for field, want := range map[string]string{
+			"parameter_group_id":          "null",
+			"configuration":               "{}",
+			"automated_snapshots_enabled": "false",
+		} {
+			if string(body[field]) != want {
+				t.Errorf("%s = %s, want %s", field, body[field], want)
+			}
+		}
+		_ = json.NewEncoder(w).Encode(updateCacheResponse{})
+	})
+	defer server.Close()
+
+	empty := map[string]string{}
+	disabled := false
+	if _, err := newTestClient(server).UpdateCache(context.Background(), "cache-1", UpdateCacheRequest{
+		ParameterGroupID: new(*int), Configuration: &empty, AutomatedSnapshotsEnabled: &disabled,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestClient_GetCache(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {

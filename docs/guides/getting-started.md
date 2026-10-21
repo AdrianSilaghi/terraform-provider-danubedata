@@ -36,7 +36,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
@@ -51,6 +51,7 @@ resource "danubedata_ssh_key" "main" {
 
 # Create a VPS instance
 resource "danubedata_vps" "web" {
+  cpu_platform = "amd"
   name        = "my-first-server"
   image       = "ubuntu-24.04"
   datacenter  = "fsn1"
@@ -163,7 +164,13 @@ For large resources or slow operations, increase timeouts:
 
 ```hcl
 resource "danubedata_vps" "large" {
-  # ... configuration ...
+  cpu_platform = "amd"
+  name             = "large-server"
+  image            = "ubuntu-24.04"
+  datacenter       = "fsn1"
+  auth_method      = "ssh_key"
+  ssh_key_id       = var.ssh_key_id
+  resource_profile = "large_shared"
 
   timeouts {
     create = "30m"

@@ -17,25 +17,16 @@ type StaticSite struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-// StaticSiteDomainDNSInstructions is the DNS record a domain owner must add to prove
-// ownership of a custom domain.
-type StaticSiteDomainDNSInstructions struct {
-	RecordType   string `json:"record_type"`
-	RecordName   string `json:"record_name"`
-	RecordValue  string `json:"record_value"`
-	Instructions string `json:"instructions"`
-}
-
 // StaticSiteDomain represents a domain attached to a static site.
 type StaticSiteDomain struct {
-	ID                 string                          `json:"id"`
-	Domain             string                          `json:"domain"`
-	VerificationStatus string                          `json:"verification_status"`
-	TLSStatus          string                          `json:"tls_status"`
-	DeploymentStatus   string                          `json:"deployment_status"`
-	IsPrimary          bool                            `json:"is_primary"`
-	DNSInstructions    StaticSiteDomainDNSInstructions `json:"dns_instructions"`
-	CreatedAt          string                          `json:"created_at"`
+	ID                 string `json:"id"`
+	Domain             string `json:"domain"`
+	VerificationStatus string `json:"verification_status"`
+	TLSStatus          string `json:"tls_status"`
+	DeploymentStatus   string `json:"deployment_status"`
+	IsPrimary          bool   `json:"is_primary"`
+	DNSInstructions    string `json:"dns_instructions"`
+	CreatedAt          string `json:"created_at"`
 }
 
 // CreateStaticSiteRequest is the payload for creating a static site.

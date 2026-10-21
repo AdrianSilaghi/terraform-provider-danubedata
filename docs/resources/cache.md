@@ -102,8 +102,17 @@ Limits in the dashboard.
   | `valkey`    | `9.1`, `9.0`, `8.1`, `8.0`, `7.2` |
   | `dragonfly` | `1.24`, `1.23`              |
 
-  Only applied at creation — see [Notes](#notes).
-* `parameter_group_id` - ID of a parameter group for custom configuration.
+  Changing it replaces the instance.
+* `parameter_group_id` - Positive numeric ID of a parameter group for custom
+  configuration. Removing it sends `null` to the API.
+* `configuration` - Map of engine settings (string values) that override
+  unlocked settings from the parameter group. An empty map clears overrides.
+* `network_tier` - `standard` (default) or `10g`. The 10 Gb tier requires
+  account enrollment and location availability. Changing it replaces the
+  instance.
+* `automated_snapshots_enabled` - Enable automated snapshots. Because creation
+  does not accept this field, the provider sets it immediately after the cache
+  reaches `running`.
 * `dns_enabled` - Whether to expose the instance publicly via DNS and a TCP
   load balancer. Defaults to `false`. Note that the API does not return live
   DNS state, so out-of-band changes are not detected until the next apply that
@@ -128,7 +137,7 @@ In addition to the arguments above, the following are exported:
 * `port` - Connection port.
 * `password` - Cache password. Sensitive.
 * `connection_info` - Full connection URI, e.g. `redis://host:6379`. Sensitive.
-* `monthly_cost` - Estimated monthly cost in euros.
+* `monthly_cost` - Estimated monthly cost in the API billing currency.
 * `monthly_cost_cents` - Estimated monthly cost in cents.
 * `created_at` / `updated_at` / `deployed_at` - Timestamps.
 
@@ -148,13 +157,16 @@ terraform import danubedata_cache.example 4c1e9b70-8a52-4d6f-b3c1-6e2f9d0a5b48
 
 - `password` and `connection_info` are stored in state. Protect your state file
   accordingly.
-- Changing `resource_profile` resizes in place; changing `cache_provider` or
-  `datacenter` replaces the instance. `name` is updated in place.
-- `version` is sent only when the instance is created. The update request
-  carries `name`, `resource_profile` and `parameter_group_id` only, so editing
-  `version` afterwards does not upgrade a running instance.
+- Changing `resource_profile` resizes in place; changing `name`,
+  `cache_provider`, `version`, `network_tier` or `datacenter` replaces the
+  instance.
+- The API does not return `configuration`, `parameter_group_id` or
+  `automated_snapshots_enabled`; Terraform retains their configured values and
+  cannot detect changes made outside Terraform. Imported instances have these
+  fields unset until you configure them.
 - Updates are applied asynchronously: the API returns before the change is
   deployed, so the instance briefly reports `pending` and returns to `running`
   once reconciled.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

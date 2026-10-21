@@ -5,12 +5,13 @@ import (
 	"fmt"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -56,11 +57,10 @@ func (r *StaticSiteResource) Schema(ctx context.Context, req resource.SchemaRequ
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "Name of the static site.",
-				Required:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+				Description:   "Name of the static site.",
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Validators:    []validator.String{stringvalidator.LengthAtMost(255)},
 			},
 			"slug": schema.StringAttribute{
 				Description: "URL slug for the site.",
@@ -71,13 +71,9 @@ func (r *StaticSiteResource) Schema(ctx context.Context, req resource.SchemaRequ
 				Computed:    true,
 			},
 			"plan": schema.StringAttribute{
-				Description: "Pricing plan for the site (free, starter, pro). Defaults to free if omitted. Changing this requires replacement; there is no update endpoint.",
+				Description: "Deprecated legacy site plan. Ignored by the API; project billing controls all static sites. Retained for state compatibility.",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("free"),
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"status": schema.StringAttribute{
 				Description: "Current status of the site.",
@@ -119,13 +115,10 @@ func (r *StaticSiteResource) Create(ctx context.Context, req resource.CreateRequ
 
 	tflog.Debug(ctx, "Creating static site", map[string]interface{}{
 		"name": data.Name.ValueString(),
-		"plan": data.Plan.ValueString(),
 	})
 
-	plan := data.Plan.ValueString()
 	site, err := r.client.CreateStaticSite(ctx, client.CreateStaticSiteRequest{
 		Name: data.Name.ValueString(),
-		Plan: &plan,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create static site", err.Error())
@@ -158,14 +151,19 @@ func (r *StaticSiteResource) Read(ctx context.Context, req resource.ReadRequest,
 }
 
 func (r *StaticSiteResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Static sites are immutable through this API; all user-visible fields require
-	// replacement. Preserve existing state rather than writing the plan (which may
-	// contain Unknown computed fields).
+	// The API has no update endpoint. Carry the deprecated, ignored plan value
+	// forward without changing the site or replacing computed fields.
 	var data StaticSiteResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var plan StaticSiteResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	data.Plan = plan.Plan
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -194,7 +192,9 @@ func (r *StaticSiteResource) mapSiteToState(site *client.StaticSite, data *Stati
 	data.Name = types.StringValue(site.Name)
 	data.Slug = types.StringValue(site.Slug)
 	data.URL = types.StringValue(site.URL)
-	data.Plan = types.StringValue(site.Plan)
+	if data.Plan.IsNull() || data.Plan.IsUnknown() {
+		data.Plan = types.StringValue(site.Plan)
+	}
 	data.Status = types.StringValue(site.Status)
 	data.CreatedAt = types.StringValue(site.CreatedAt)
 	data.UpdatedAt = types.StringValue(site.UpdatedAt)

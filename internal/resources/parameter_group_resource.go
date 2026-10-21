@@ -91,6 +91,7 @@ func (r *ParameterGroupResource) Schema(ctx context.Context, req resource.Schema
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"description": schema.StringAttribute{
@@ -275,10 +276,13 @@ func (r *ParameterGroupResource) Update(ctx context.Context, req resource.Update
 	}
 
 	name := data.Name.ValueString()
+	parameters := stringMapToInterface(paramMap)
 	updateReq := client.UpdateParameterGroupRequest{
-		Name:             &name,
-		Parameters:       stringMapToInterface(paramMap),
-		LockedParameters: locked,
+		Name:       &name,
+		Parameters: &parameters,
+	}
+	if locked != nil {
+		updateReq.LockedParameters = &locked
 	}
 
 	if !data.Description.IsNull() && !data.Description.IsUnknown() {

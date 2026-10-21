@@ -23,6 +23,7 @@ resource "danubedata_vps" "server" {
   name        = "web-server"
   image       = "ubuntu-24.04"
   datacenter  = "fsn1"
+  cpu_platform = "amd"
   auth_method = "ssh_key"
   ssh_key_id  = danubedata_ssh_key.deploy.id
 }
@@ -36,6 +37,12 @@ resource "danubedata_vps" "server" {
 * `public_key` - The SSH public key in OpenSSH format, e.g. `ssh-rsa AAAA...`
   or `ssh-ed25519 AAAA...`.
 
+### Optional
+
+* `is_default` - Make this your default key when created. Defaults to `false`; changing it replaces the key.
+
+Names are immutable in the API, so changing `name` also replaces the key.
+
 ## Attribute Reference
 
 In addition to the arguments above, the following are exported:
@@ -43,6 +50,7 @@ In addition to the arguments above, the following are exported:
 * `id` - The SSH key ID.
 * `fingerprint` - The SHA256 fingerprint of the SSH key.
 * `created_at` / `updated_at` - Timestamps.
+* `user_id` - Owning user ID.
 
 ## Import
 

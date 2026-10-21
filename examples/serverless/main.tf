@@ -5,7 +5,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
@@ -14,6 +14,7 @@ provider "danubedata" {}
 
 # Simple nginx container
 resource "danubedata_serverless" "web" {
+  slug            = "my-web-app"
   name            = "my-web-app"
   deployment_type = "docker_image"
   image           = "nginx"

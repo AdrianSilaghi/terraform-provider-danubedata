@@ -72,6 +72,8 @@ In addition to the arguments above, the following are exported:
 * `status` - Current status. `creating` while in progress, `ready` when
   complete.
 * `size_mb` - Size of the snapshot in MB.
+* `size_bytes` - Exact size in bytes, or null while unknown.
+* `size_basis` - How size was measured (`stored`, `uploaded`, or `captured`), or null while unknown.
 * `created_at` / `updated_at` - Timestamps.
 
 ## Import
@@ -93,5 +95,6 @@ terraform import danubedata_cache_snapshot.example 3907
   an instance you are about to tear down.
 - Restoring from a snapshot is not exposed as a Terraform resource; use the
   dashboard or API.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

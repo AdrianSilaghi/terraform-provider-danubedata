@@ -11,6 +11,7 @@ resource "danubedata_vps" "server" {
   name        = "web-server"
   image       = "ubuntu-24.04"
   datacenter  = "fsn1"
+  cpu_platform = "amd"
   auth_method = "ssh_key"
   ssh_key_id  = danubedata_ssh_key.main.id
 }
@@ -71,7 +72,9 @@ In addition to the arguments above, the following are exported:
 
 * `id` - The snapshot ID.
 * `status` - Current status (`creating`, `ready`, `failed`).
-* `size_gb` - Size of the snapshot in GB.
+* `size_gb` - Size of the snapshot in GB, or null before it is measured.
+* `size_bytes` / `size_basis` - Measured size and its basis when available.
+* `expires_at` - Automatic deletion time when applicable.
 * `created_at` / `updated_at` - Timestamps.
 
 ## Import

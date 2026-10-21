@@ -5,7 +5,7 @@ terraform {
   required_providers {
     danubedata = {
       source  = "AdrianSilaghi/danubedata"
-      version = "~> 0.3"
+      version = "~> 0.4"
     }
   }
 }
@@ -74,11 +74,12 @@ resource "danubedata_firewall" "web" {
 
 # VPS instance
 resource "danubedata_vps" "web" {
-  name        = "web-server"
-  image       = "ubuntu-22.04"
-  datacenter  = "fsn1"
-  auth_method = "ssh_key"
-  ssh_key_id  = danubedata_ssh_key.main.id
+  cpu_platform = "amd"
+  name         = "web-server"
+  image        = "ubuntu-22.04"
+  datacenter   = "fsn1"
+  auth_method  = "ssh_key"
+  ssh_key_id   = danubedata_ssh_key.main.id
 
   # CPU, memory and storage are derived from the plan and are read-only.
   resource_profile = "micro_shared"

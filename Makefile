@@ -12,9 +12,9 @@ LDFLAGS=-s -w -X main.version=$(VERSION)
 
 # Install paths
 OS_ARCH=$(GOOS)_$(GOARCH)
-INSTALL_PATH=~/.terraform.d/plugins/registry.terraform.io/AdrianSilaghi/danubedata/0.0.1/$(OS_ARCH)
+INSTALL_PATH=~/.terraform.d/plugins/registry.terraform.io/AdrianSilaghi/danubedata/$(patsubst v%,%,$(VERSION))/$(OS_ARCH)
 
-.PHONY: all build install test testacc clean fmt lint docs help
+.PHONY: all build install test test-coverage testacc clean fmt lint docs help
 
 all: build
 
@@ -29,11 +29,11 @@ install: build
 
 ## Run unit tests
 test:
-	$(GO) test -v -race ./...
+	TF_ACC= $(GO) test -v -race ./...
 
 ## Run unit tests with coverage
 test-coverage:
-	$(GO) test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+	TF_ACC= $(GO) test -v -race -coverpkg=./... -coverprofile=coverage.out -covermode=atomic ./...
 	$(GO) tool cover -html=coverage.out -o coverage.html
 
 ## Run acceptance tests (requires DANUBEDATA_API_TOKEN)
@@ -53,10 +53,9 @@ fmt:
 lint:
 	golangci-lint run
 
-## Generate documentation
+## Show documentation editing instructions
 docs:
-	$(GO) generate ./...
-	tfplugindocs generate
+	@echo "Documentation is maintained by hand in docs/. Update matching resource/data source pages and examples when changing a schema."
 
 ## Clean build artifacts
 clean:

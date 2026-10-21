@@ -7,27 +7,38 @@ import (
 
 // Firewall represents a firewall from the API
 type Firewall struct {
-	ID          string         `json:"id"`
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Status      string         `json:"status"`
-	Rules       []FirewallRule `json:"rules"`
-	CreatedAt   string         `json:"created_at"`
-	UpdatedAt   string         `json:"updated_at"`
-	TeamID      int            `json:"team_id"`
+	ID            string         `json:"id"`
+	Name          string         `json:"name"`
+	Description   string         `json:"description"`
+	Status        string         `json:"status"`
+	IsDefault     string         `json:"is_default"`
+	IsSystem      bool           `json:"is_system"`
+	DefaultAction string         `json:"default_action"`
+	Rules         []FirewallRule `json:"rules"`
+	CreatedAt     string         `json:"created_at"`
+	UpdatedAt     string         `json:"updated_at"`
+	TeamID        int            `json:"team_id"`
 }
 
 // FirewallRule represents a firewall rule
 type FirewallRule struct {
-	ID             string   `json:"id"`
-	Name           string   `json:"name"`
-	Action         string   `json:"action"`
-	Direction      string   `json:"direction"`
-	Protocol       string   `json:"protocol"`
-	PortRangeStart *int     `json:"port_range_start"`
-	PortRangeEnd   *int     `json:"port_range_end"`
-	SourceIPs      []string `json:"source_ips"`
-	Order          int      `json:"order"`
+	ID                string                   `json:"id"`
+	Name              string                   `json:"name"`
+	Action            string                   `json:"action"`
+	Direction         string                   `json:"direction"`
+	Protocol          string                   `json:"protocol"`
+	Port              *int                     `json:"port"`
+	IsLocked          bool                     `json:"is_locked"`
+	SourceInstanceIDs []FirewallSourceInstance `json:"source_instance_ids"`
+	PortRangeStart    *int                     `json:"port_range_start"`
+	PortRangeEnd      *int                     `json:"port_range_end"`
+	SourceIPs         []string                 `json:"source_ips"`
+	Order             int                      `json:"order"`
+}
+
+type FirewallSourceInstance struct {
+	ID   string  `json:"id"`
+	Type *string `json:"type"`
 }
 
 // CreateFirewallRequest represents a request to create a firewall
@@ -39,21 +50,24 @@ type CreateFirewallRequest struct {
 
 // CreateFirewallRuleRequest represents a rule in a create or update request
 type CreateFirewallRuleRequest struct {
-	Name           string   `json:"name,omitempty"`
-	Action         string   `json:"action"`
-	Direction      string   `json:"direction"`
-	Protocol       string   `json:"protocol"`
-	PortRangeStart *int     `json:"port_range_start,omitempty"`
-	PortRangeEnd   *int     `json:"port_range_end,omitempty"`
-	SourceIPs      []string `json:"source_ips,omitempty"`
-	Order          int      `json:"order,omitempty"`
+	ID                string                   `json:"id,omitempty"`
+	Name              string                   `json:"name,omitempty"`
+	Action            string                   `json:"action"`
+	Direction         string                   `json:"direction"`
+	Protocol          string                   `json:"protocol"`
+	Port              *int                     `json:"port"`
+	SourceInstanceIDs []FirewallSourceInstance `json:"source_instance_ids"`
+	PortRangeStart    *int                     `json:"port_range_start"`
+	PortRangeEnd      *int                     `json:"port_range_end"`
+	SourceIPs         []string                 `json:"source_ips"`
+	Order             int                      `json:"order,omitempty"`
 }
 
 // UpdateFirewallRequest represents a request to update a firewall
 type UpdateFirewallRequest struct {
-	Name        string                      `json:"name,omitempty"`
-	Description string                      `json:"description,omitempty"`
-	Rules       []CreateFirewallRuleRequest `json:"rules,omitempty"`
+	Name        string                       `json:"name,omitempty"`
+	Description **string                     `json:"description,omitempty"`
+	Rules       *[]CreateFirewallRuleRequest `json:"rules,omitempty"`
 }
 
 // AttachFirewallRequest represents a request to attach a firewall to an instance

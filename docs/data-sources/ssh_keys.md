@@ -29,6 +29,7 @@ resource "danubedata_vps" "server" {
   name        = "web-server"
   image       = "ubuntu-22.04"
   datacenter  = "fsn1"
+  cpu_platform = "amd"
   auth_method = "ssh_key"
   ssh_key_id  = local.deploy_key.id
 }
@@ -45,4 +46,6 @@ This data source has no arguments.
   * `name` - Name of the key.
   * `fingerprint` - SHA256 fingerprint of the SSH key.
   * `public_key` - The public key content.
-  * `created_at` - Creation timestamp.
+  * `is_default` - Whether this is your default SSH key.
+  * `created_at` / `updated_at` - Creation and update timestamps.
+  * `user_id` - Owning user ID.

@@ -34,6 +34,8 @@ type DatabaseSnapshotResourceModel struct {
 	DatabaseInstanceID types.String   `tfsdk:"database_instance_id"`
 	Status             types.String   `tfsdk:"status"`
 	SizeGB             types.Float64  `tfsdk:"size_gb"`
+	SizeBytes          types.Int64    `tfsdk:"size_bytes"`
+	SizeBasis          types.String   `tfsdk:"size_basis"`
 	CreatedAt          types.String   `tfsdk:"created_at"`
 	UpdatedAt          types.String   `tfsdk:"updated_at"`
 	Timeouts           timeouts.Value `tfsdk:"timeouts"`
@@ -89,6 +91,8 @@ func (r *DatabaseSnapshotResource) Schema(ctx context.Context, req resource.Sche
 				Description: "Size of the snapshot in GB.",
 				Computed:    true,
 			},
+			"size_bytes": schema.Int64Attribute{Computed: true, Description: "Exact snapshot size in bytes, when known."},
+			"size_basis": schema.StringAttribute{Computed: true, Description: "How size was measured: stored, uploaded, or captured."},
 			"created_at": schema.StringAttribute{
 				Description: "Timestamp when the snapshot was created.",
 				Computed:    true,
@@ -154,6 +158,11 @@ func (r *DatabaseSnapshotResource) Create(ctx context.Context, req resource.Crea
 	}
 
 	data.ID = types.StringValue(strconv.FormatInt(snapshot.ID, 10))
+	r.mapSnapshotToState(snapshot, &data)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if err := r.client.WaitForDatabaseSnapshotStatus(ctx, snapshot.ID, "ready", createTimeout); err != nil {
 		resp.Diagnostics.AddError(
@@ -201,11 +210,13 @@ func (r *DatabaseSnapshotResource) Read(ctx context.Context, req resource.ReadRe
 }
 
 func (r *DatabaseSnapshotResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Snapshots are immutable; all user-visible fields require replacement. Preserve
-	// existing state rather than writing the plan (which may contain Unknown computed
-	// fields when only the timeouts block changes).
+	// Preserve computed snapshot values while accepting local timeout changes.
 	var data DatabaseSnapshotResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("timeouts"), &data.Timeouts)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -254,7 +265,21 @@ func (r *DatabaseSnapshotResource) mapSnapshotToState(snapshot *client.DatabaseS
 	data.Description = types.StringValue(snapshot.Description)
 	data.DatabaseInstanceID = types.StringValue(snapshot.DatabaseInstanceID)
 	data.Status = types.StringValue(snapshot.Status)
-	data.SizeGB = types.Float64Value(snapshot.SizeGB)
+	if snapshot.SizeKnown {
+		data.SizeGB = types.Float64Value(snapshot.SizeGB)
+	} else {
+		data.SizeGB = types.Float64Null()
+	}
+	if snapshot.SizeBytes != nil {
+		data.SizeBytes = types.Int64Value(*snapshot.SizeBytes)
+	} else {
+		data.SizeBytes = types.Int64Null()
+	}
+	if snapshot.SizeBasis != nil {
+		data.SizeBasis = types.StringValue(*snapshot.SizeBasis)
+	} else {
+		data.SizeBasis = types.StringNull()
+	}
 	data.CreatedAt = types.StringValue(snapshot.CreatedAt)
 	data.UpdatedAt = types.StringValue(snapshot.UpdatedAt)
 }

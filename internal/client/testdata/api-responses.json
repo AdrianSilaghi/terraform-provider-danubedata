@@ -1,0 +1,698 @@
+{
+  "source": "https://danubedata.ro/docs/api.json",
+  "captured": "2026-10-20",
+  "note": "Synthetic non-null values from published schemas; ambiguous PHP array fields follow origin/master serializers and CLI v1.8.0. No account data.",
+  "responses": {
+    "VpsInstanceResource": {
+      "id": "sample",
+      "name": "sample",
+      "status": "sample",
+      "status_label": "Pending",
+      "status_details": {
+        "summary": "sample",
+        "health": "sample",
+        "observed_at": "2026-10-20T12:00:00Z",
+        "stale": true,
+        "operation": {
+          "state": "sample",
+          "terminal": true
+        },
+        "error": {
+          "code": "sample",
+          "source": "sample",
+          "resource": {
+            "kind": "sample",
+            "name": "sample"
+          },
+          "reason": "sample",
+          "message": "sample",
+          "retryable": true,
+          "observed_at": "2026-10-20T12:00:00Z"
+        }
+      },
+      "capabilities": {
+        "logs": true,
+        "events": true,
+        "diagnose": true,
+        "build_logs": true
+      },
+      "resource_profile": "sample",
+      "network_tier": "standard",
+      "cpu_allocation_type": "sample",
+      "cpu_platform": "sample",
+      "cpu_cores": 1,
+      "memory_size_gb": 1,
+      "storage_size_gb": 1,
+      "image": "sample",
+      "datacenter": "sample",
+      "public_ip": "sample",
+      "ipv6_address": "sample",
+      "primary_ipv4_floating_ip_id": "sample",
+      "primary_ipv6_floating_ip_id": "sample",
+      "vnc_access_url": "sample",
+      "monthly_cost_cents": 1,
+      "monthly_cost_dollars": 1.25,
+      "deployed_at": "2026-10-20T12:00:00Z",
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z",
+      "team_id": 1,
+      "user_id": 1,
+      "ssh_key_id": 1,
+      "can_be_started": true,
+      "can_be_stopped": true,
+      "can_be_rebooted": true,
+      "can_be_destroyed": true
+    },
+    "CacheInstanceResource": {
+      "id": "sample",
+      "name": "sample",
+      "status": "sample",
+      "status_label": "Pending",
+      "status_details": {
+        "summary": "sample",
+        "health": "sample",
+        "observed_at": "2026-10-20T12:00:00Z",
+        "stale": true,
+        "operation": {
+          "state": "sample",
+          "terminal": true
+        },
+        "error": {
+          "code": "sample",
+          "source": "sample",
+          "resource": {
+            "kind": "sample",
+            "name": "sample"
+          },
+          "reason": "sample",
+          "message": "sample",
+          "retryable": true,
+          "observed_at": "2026-10-20T12:00:00Z"
+        }
+      },
+      "capabilities": {
+        "logs": true,
+        "events": true,
+        "diagnose": true,
+        "build_logs": true
+      },
+      "resource_profile": "sample",
+      "network_tier": "standard",
+      "cpu_cores": 1,
+      "memory_size_mb": 1,
+      "version": "sample",
+      "provider_id": 1,
+      "provider": {
+        "id": 1,
+        "name": "sample",
+        "type": "sample"
+      },
+      "endpoint": "sample",
+      "port": 1,
+      "dns_hostname": "sample",
+      "dns_port": 1,
+      "internal_host": "sample",
+      "internal_port": 1,
+      "internal_endpoint": "sample",
+      "public_endpoint": "sample",
+      "connection_host": "sample",
+      "connection_port": 1,
+      "monthly_cost_cents": 1,
+      "monthly_cost_dollars": 1.25,
+      "deployed_at": "2026-10-20T12:00:00Z",
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z",
+      "team_id": 1,
+      "user_id": 1,
+      "can_be_started": true,
+      "can_be_stopped": true,
+      "can_be_destroyed": true
+    },
+    "DatabaseInstanceResource": {
+      "id": "sample",
+      "name": "sample",
+      "status": "sample",
+      "status_label": "Pending",
+      "status_details": {
+        "summary": "sample",
+        "health": "sample",
+        "observed_at": "2026-10-20T12:00:00Z",
+        "stale": true,
+        "operation": {
+          "state": "sample",
+          "terminal": true
+        },
+        "error": {
+          "code": "sample",
+          "source": "sample",
+          "resource": {
+            "kind": "sample",
+            "name": "sample"
+          },
+          "reason": "sample",
+          "message": "sample",
+          "retryable": true,
+          "observed_at": "2026-10-20T12:00:00Z"
+        }
+      },
+      "capabilities": {
+        "logs": true,
+        "events": true,
+        "diagnose": true,
+        "build_logs": true
+      },
+      "resource_profile": "sample",
+      "network_tier": "standard",
+      "cpu_cores": 1,
+      "memory_size_mb": 1,
+      "storage_size_gb": 1,
+      "version": "sample",
+      "database_name": "sample",
+      "datacenter": "sample",
+      "provider_id": 1,
+      "provider": {
+        "id": 1,
+        "name": "sample",
+        "type": "sample"
+      },
+      "engine": {
+        "id": 1,
+        "name": "sample"
+      },
+      "endpoint": "sample",
+      "port": 1,
+      "dns_hostname": "sample",
+      "dns_port": 1,
+      "proxy_dns_hostname": "sample",
+      "proxy_dns_port": 1,
+      "proxy_any_dns_port": 1,
+      "internal_host": "sample",
+      "internal_port": 1,
+      "internal_endpoint": "sample",
+      "public_endpoint": "sample",
+      "connection_host": "sample",
+      "connection_port": 1,
+      "username": "sample",
+      "monthly_cost_cents": 1,
+      "monthly_cost_dollars": 1.25,
+      "storage_autoscale_policy": {
+        "enabled": true,
+        "threshold_percent": 1,
+        "increment_gib": 1,
+        "max_storage_gib": 1,
+        "last_scaled_at": "2026-10-20T12:00:00Z",
+        "last_checked_at": "2026-10-20T12:00:00Z"
+      },
+      "deployed_at": "2026-10-20T12:00:00Z",
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z",
+      "team_id": 1,
+      "user_id": 1,
+      "can_be_started": true,
+      "can_be_stopped": true,
+      "can_be_destroyed": true
+    },
+    "FirewallResource": {
+      "id": "sample",
+      "name": "sample",
+      "description": "sample",
+      "status": "draft",
+      "is_default": "sample",
+      "is_system": true,
+      "default_action": "sample",
+      "rules": [
+        {
+          "id": "sample",
+          "name": "sample",
+          "action": "sample",
+          "direction": "sample",
+          "protocol": "sample",
+          "port": 1,
+          "port_range_start": 1,
+          "port_range_end": 1,
+          "source_ips": [
+            "sample"
+          ],
+          "source_instance_ids": [
+            {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "type": "vps"
+            }
+          ],
+          "order": 1,
+          "is_locked": true
+        }
+      ],
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z",
+      "team_id": 1
+    },
+    "ParameterGroupResource": {
+      "id": 1,
+      "name": "sample",
+      "type": "sample",
+      "provider_type": "sample",
+      "family": "sample",
+      "description": "sample",
+      "parameters": {
+        "max_connections": "100"
+      },
+      "locked_parameters": [
+        "sample"
+      ],
+      "team_id": 1,
+      "is_default": true,
+      "is_active": true,
+      "is_system": true,
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z"
+    },
+    "ServerlessContainerResource": {
+      "id": "sample",
+      "name": "sample",
+      "slug": "sample",
+      "description": "sample",
+      "deployment_type": "sample",
+      "source_type": "sample",
+      "repository_url": "sample",
+      "repository_branch": "sample",
+      "repository_commit_sha": "sample",
+      "build_context_path": "sample",
+      "dockerfile_path": "sample",
+      "git_auth_type": "sample",
+      "buildpack_builder": "sample",
+      "detected_runtime": "sample",
+      "auto_build_on_push": true,
+      "build_cache_enabled": true,
+      "auto_deploy": true,
+      "image": "sample",
+      "image_tag": "sample",
+      "built_image_ref": "sample",
+      "registry_credential_id": "sample",
+      "uses_danube_registry": true,
+      "port": 1,
+      "min_scale": 1,
+      "max_scale": 1,
+      "concurrency_target": 1,
+      "container_concurrency": 1,
+      "target_concurrency": "sample",
+      "scaling_metric": "sample",
+      "scaling_target": 1,
+      "timeout_seconds": 1,
+      "progress_deadline_seconds": 1,
+      "initial_scale": 1,
+      "scale_down_delay_seconds": 1,
+      "resource_profile": "sample",
+      "cpu_request": "sample",
+      "cpu_limit": "sample",
+      "memory_request": "sample",
+      "memory_limit": "sample",
+      "health_check_path": "sample",
+      "scale_to_zero_enabled": true,
+      "environment_variables": {
+        "APP_ENV": "production"
+      },
+      "status": "sample",
+      "status_details": {
+        "summary": "sample",
+        "health": "sample",
+        "observed_at": "2026-10-20T12:00:00Z",
+        "stale": true,
+        "operation": {
+          "state": "sample",
+          "terminal": true
+        },
+        "error": {
+          "code": "sample",
+          "source": "sample",
+          "resource": {
+            "kind": "sample",
+            "name": "sample"
+          },
+          "reason": "sample",
+          "message": "sample",
+          "retryable": true,
+          "observed_at": "2026-10-20T12:00:00Z"
+        }
+      },
+      "last_error": "sample",
+      "error_category": "sample",
+      "knative_service_name": "sample",
+      "url": "sample",
+      "current_revision": "sample",
+      "deployment_count": 1,
+      "spec_generation": 1,
+      "observed_generation": 1,
+      "deployed_at": "2026-10-20T12:00:00Z",
+      "last_deployed_at": "2026-10-20T12:00:00Z",
+      "last_stopped_at": "2026-10-20T12:00:00Z",
+      "last_build_at": "2026-10-20T12:00:00Z",
+      "total_requests": 1,
+      "requests_per_minute": 1,
+      "current_replicas": 1,
+      "avg_response_time_ms": 1.25,
+      "error_rate": 1.25,
+      "metrics_updated_at": "2026-10-20T12:00:00Z",
+      "volume": {
+        "id": "sample",
+        "size_gb": 1,
+        "mount_path": "sample",
+        "status": "sample",
+        "billed": true,
+        "monthly_cost_cents": 1,
+        "failure": {
+          "operation": "sample",
+          "message": "sample"
+        },
+        "created_at": "2026-10-20T12:00:00Z",
+        "updated_at": "2026-10-20T12:00:00Z"
+      },
+      "current_month_requests": 1,
+      "current_month_compute_seconds": 1.25,
+      "current_month_cost_cents": 1.25,
+      "billing_period": "sample",
+      "capabilities": {
+        "logs": true,
+        "events": true,
+        "revisions": true
+      },
+      "team": {
+        "id": 1,
+        "name": "sample"
+      },
+      "user": {
+        "id": 1,
+        "name": "sample"
+      },
+      "deployments": [
+        {
+          "id": "sample",
+          "serverless_container_id": "sample",
+          "revision_number": 1,
+          "revision_name": "sample",
+          "knative_revision_name": "sample",
+          "description": "sample",
+          "image": "sample",
+          "image_tag": "sample",
+          "port": 1,
+          "min_scale": 1,
+          "max_scale": 1,
+          "target_concurrency": 1,
+          "resource_profile": "sample",
+          "status": "sample",
+          "status_details": {
+            "summary": "sample",
+            "health": "sample",
+            "observed_at": "2026-10-20T12:00:00Z",
+            "stale": true,
+            "operation": {
+              "state": "sample",
+              "terminal": true
+            },
+            "error": {
+              "code": "sample",
+              "source": "sample",
+              "resource": {
+                "kind": "sample",
+                "name": "sample"
+              },
+              "reason": "sample",
+              "message": "sample",
+              "retryable": true,
+              "observed_at": "2026-10-20T12:00:00Z"
+            }
+          },
+          "is_current": true,
+          "traffic_percent": 1,
+          "error_message": "sample",
+          "error_category": "sample",
+          "total_requests": 1,
+          "first_request_at": "2026-10-20T12:00:00Z",
+          "last_request_at": "2026-10-20T12:00:00Z",
+          "deployed_at": "2026-10-20T12:00:00Z",
+          "activated_at": "2026-10-20T12:00:00Z",
+          "deactivated_at": "2026-10-20T12:00:00Z",
+          "created_at": "2026-10-20T12:00:00Z",
+          "updated_at": "2026-10-20T12:00:00Z"
+        }
+      ],
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z"
+    },
+    "SshKeyResource": {
+      "id": 1,
+      "name": "sample",
+      "fingerprint": "sample",
+      "public_key": "sample",
+      "is_default": true,
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z",
+      "team_id": null,
+      "user_id": 1
+    },
+    "StaticSiteResource": {
+      "id": "sample",
+      "name": "sample",
+      "slug": "sample",
+      "description": "sample",
+      "status": "sample",
+      "status_label": "Pending",
+      "status_details": {
+        "summary": "sample",
+        "health": "sample",
+        "observed_at": "2026-10-20T12:00:00Z",
+        "stale": true,
+        "operation": {
+          "state": "sample",
+          "terminal": true
+        },
+        "error": {
+          "code": "sample",
+          "source": "sample",
+          "resource": {
+            "kind": "sample",
+            "name": "sample"
+          },
+          "reason": "sample",
+          "message": "sample",
+          "retryable": true,
+          "observed_at": "2026-10-20T12:00:00Z"
+        }
+      },
+      "capabilities": {
+        "logs": true,
+        "events": true,
+        "diagnose": true,
+        "build_logs": true
+      },
+      "last_error": "sample",
+      "plan": "sample",
+      "deploy_method": "sample",
+      "url": "sample",
+      "deployment_count": 1,
+      "storage_bytes_used": 1,
+      "monthly_cost_cents": 1,
+      "deployed_at": "2026-10-20T12:00:00Z",
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z"
+    },
+    "StaticSiteDomainResource": {
+      "id": "sample",
+      "domain": "sample",
+      "verification_status": "sample",
+      "tls_status": "sample",
+      "deployment_status": "sample",
+      "is_primary": true,
+      "dns_instructions": "sample",
+      "created_at": "2026-10-20T12:00:00Z"
+    },
+    "StorageAccessKeyResource": {
+      "id": "sample",
+      "name": "sample",
+      "access_key_id": "sample",
+      "access_key_id_masked": "sample",
+      "arn": "sample",
+      "status": "sample",
+      "status_label": "Active",
+      "access_type": "restricted",
+      "is_prefix_scoped": true,
+      "scope": "buckets",
+      "bucket_permissions": [
+        {
+          "bucket_id": "sample",
+          "bucket_name": "sample",
+          "level": "sample"
+        }
+      ],
+      "expires_at": "2026-10-20T12:00:00Z",
+      "last_used_at": "2026-10-20T12:00:00Z",
+      "revoked_at": "2026-10-20T12:00:00Z",
+      "is_expired": true,
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z",
+      "team_id": 1,
+      "user_id": 1
+    },
+    "StorageBucketResource": {
+      "id": "sample",
+      "name": "sample",
+      "display_name": "sample",
+      "status": "sample",
+      "status_label": "Pending",
+      "status_details": {
+        "summary": "sample",
+        "health": "sample",
+        "observed_at": "2026-10-20T12:00:00Z",
+        "stale": true,
+        "operation": {
+          "state": "sample",
+          "terminal": true
+        },
+        "error": {
+          "code": "sample",
+          "source": "sample",
+          "resource": {
+            "kind": "sample",
+            "name": "sample"
+          },
+          "reason": "sample",
+          "message": "sample",
+          "retryable": true,
+          "observed_at": "2026-10-20T12:00:00Z"
+        }
+      },
+      "capabilities": {
+        "logs": true,
+        "events": true,
+        "diagnose": true,
+        "build_logs": true
+      },
+      "region": "sample",
+      "provider": "sample",
+      "provider_label": "MinIO",
+      "endpoint_url": "sample",
+      "endpoint": "sample",
+      "public_url": "sample",
+      "public_access": true,
+      "versioning_enabled": true,
+      "object_lock_enabled": true,
+      "object_lock_default_retention_mode": "sample",
+      "object_lock_default_retention_days": 1,
+      "object_lock_default_retention_human": "sample",
+      "has_object_lock": true,
+      "has_default_retention": true,
+      "is_compliance_mode": true,
+      "encryption_enabled": true,
+      "encryption_type": "sse-s3",
+      "size_bytes": 1,
+      "size_human": "sample",
+      "size_limit_bytes": 1,
+      "size_limit_human": "sample",
+      "quota_usage_percent": 1.25,
+      "is_near_quota_limit": true,
+      "has_exceeded_quota": true,
+      "object_count": 1,
+      "lifecycle_rules": [
+        {
+          "ID": "expire-temp",
+          "Status": "Enabled",
+          "Filter": {
+            "Prefix": "tmp/"
+          },
+          "Expiration": {
+            "Days": 30
+          }
+        }
+      ],
+      "cors_configuration": {
+        "CORSRules": [
+          {
+            "AllowedOrigins": [
+              "https://example.com"
+            ],
+            "AllowedMethods": [
+              "GET"
+            ]
+          }
+        ]
+      },
+      "custom_policy_statements": [
+        "sample"
+      ],
+      "bucket_arn": "sample",
+      "tags": {
+        "environment": "test"
+      },
+      "monthly_cost_cents": 1,
+      "monthly_cost_dollars": 1.25,
+      "requests_24h_total": 1,
+      "requests_24h_by_method": [
+        "sample"
+      ],
+      "egress_bytes_24h": 1,
+      "metrics_precomputed_at": "2026-10-20T12:00:00Z",
+      "last_metrics_sync_at": "2026-10-20T12:00:00Z",
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z",
+      "team_id": 1,
+      "user_id": 1,
+      "minio_bucket_name": "sample",
+      "can_be_modified": true,
+      "can_be_destroyed": true
+    },
+    "VpsSnapshotResource": {
+      "id": 1,
+      "name": "sample",
+      "description": "sample",
+      "status": "sample",
+      "size_bytes": 1,
+      "size_basis": "sample",
+      "size_gb": "1.25",
+      "vps_instance_id": "sample",
+      "vps_instance": {
+        "id": "sample",
+        "name": "sample",
+        "deleted_at": "2026-10-20T12:00:00Z"
+      },
+      "expires_at": "2026-10-20T12:00:00Z",
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z"
+    },
+    "CacheSnapshotResource": {
+      "id": 1,
+      "name": "sample",
+      "description": "sample",
+      "status": "sample",
+      "size_bytes": 1,
+      "size_basis": "sample",
+      "size_mb": "1.25",
+      "cache_instance_id": "sample",
+      "cache_instance": {
+        "id": "sample",
+        "name": "sample"
+      },
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z"
+    },
+    "DatabaseSnapshotResource": {
+      "id": 1,
+      "name": "sample",
+      "description": "sample",
+      "status": "sample",
+      "size_bytes": 1,
+      "size_basis": "sample",
+      "size_gb": "1.25",
+      "database_instance_id": "sample",
+      "database_instance": {
+        "id": "sample",
+        "name": "sample",
+        "deleted": true
+      },
+      "kept_status": "sample",
+      "kept_size_bytes": 1,
+      "kept_at": "2026-10-20T12:00:00Z",
+      "created_at": "2026-10-20T12:00:00Z",
+      "updated_at": "2026-10-20T12:00:00Z"
+    }
+  }
+}

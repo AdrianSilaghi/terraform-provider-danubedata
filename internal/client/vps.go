@@ -9,49 +9,57 @@ import (
 
 // VpsInstance represents a VPS instance from the API
 type VpsInstance struct {
-	ID                string  `json:"id"`
-	Name              string  `json:"name"`
-	Status            string  `json:"status"`
-	StatusLabel       string  `json:"status_label"`
-	ResourceProfile   string  `json:"resource_profile"`
-	CPUAllocationType string  `json:"cpu_allocation_type"`
-	CPUCores          int     `json:"cpu_cores"`
-	MemorySizeGB      int     `json:"memory_size_gb"`
-	StorageSizeGB     int     `json:"storage_size_gb"`
-	Image             string  `json:"image"`
-	Datacenter        string  `json:"datacenter"`
-	Node              *string `json:"node"`
-	PublicIP          *string `json:"public_ip"`
-	PrivateIP         *string `json:"private_ip"`
-	IPv6Address       *string `json:"ipv6_address"`
-	VNCAccessURL      *string `json:"vnc_access_url"`
-	MonthlyCostCents  int     `json:"monthly_cost_cents"`
-	MonthlyCost       float64 `json:"monthly_cost_dollars"`
-	DeployedAt        *string `json:"deployed_at"`
-	CreatedAt         string  `json:"created_at"`
-	UpdatedAt         string  `json:"updated_at"`
-	TeamID            int     `json:"team_id"`
-	UserID            int     `json:"user_id"`
-	SSHKeyID          *int64  `json:"ssh_key_id"`
-	CanBeStarted      bool    `json:"can_be_started"`
-	CanBeStopped      bool    `json:"can_be_stopped"`
-	CanBeRebooted     bool    `json:"can_be_rebooted"`
-	CanBeDestroyed    bool    `json:"can_be_destroyed"`
+	ID                      string  `json:"id"`
+	Name                    string  `json:"name"`
+	Status                  string  `json:"status"`
+	StatusLabel             string  `json:"status_label"`
+	ResourceProfile         string  `json:"resource_profile"`
+	CPUAllocationType       string  `json:"cpu_allocation_type"`
+	CPUPlatform             string  `json:"cpu_platform"`
+	NetworkTier             string  `json:"network_tier"`
+	CPUCores                int     `json:"cpu_cores"`
+	MemorySizeGB            int     `json:"memory_size_gb"`
+	StorageSizeGB           int     `json:"storage_size_gb"`
+	Image                   string  `json:"image"`
+	Datacenter              string  `json:"datacenter"`
+	Node                    *string `json:"node"`
+	PublicIP                *string `json:"public_ip"`
+	PrivateIP               *string `json:"private_ip"`
+	IPv6Address             *string `json:"ipv6_address"`
+	VNCAccessURL            *string `json:"vnc_access_url"`
+	MonthlyCostCents        int     `json:"monthly_cost_cents"`
+	MonthlyCost             float64 `json:"monthly_cost_dollars"`
+	DeployedAt              *string `json:"deployed_at"`
+	CreatedAt               string  `json:"created_at"`
+	UpdatedAt               string  `json:"updated_at"`
+	TeamID                  int     `json:"team_id"`
+	UserID                  int     `json:"user_id"`
+	SSHKeyID                *int64  `json:"ssh_key_id"`
+	PrimaryIPv4FloatingIPID *string `json:"primary_ipv4_floating_ip_id"`
+	PrimaryIPv6FloatingIPID *string `json:"primary_ipv6_floating_ip_id"`
+	CanBeStarted            bool    `json:"can_be_started"`
+	CanBeStopped            bool    `json:"can_be_stopped"`
+	CanBeRebooted           bool    `json:"can_be_rebooted"`
+	CanBeDestroyed          bool    `json:"can_be_destroyed"`
 }
 
 // CreateVpsRequest represents a request to create a VPS
 type CreateVpsRequest struct {
-	Name              string  `json:"name"`
-	ResourceProfile   string  `json:"resource_profile,omitempty"`
-	CPUAllocationType string  `json:"cpu_allocation_type,omitempty"`
-	Image             string  `json:"image"`
-	Datacenter        string  `json:"datacenter"`
-	NetworkStack      string  `json:"network_stack,omitempty"`
-	AuthMethod        string  `json:"auth_method"`
-	SSHKeyID          *int64  `json:"ssh_key_id,omitempty"`
-	Password          *string `json:"password,omitempty"`
-	PasswordConfirm   *string `json:"password_confirmation,omitempty"`
-	CustomCloudInit   *string `json:"custom_cloud_init,omitempty"`
+	Name                    string  `json:"name"`
+	ResourceProfile         string  `json:"resource_profile,omitempty"`
+	CPUAllocationType       string  `json:"cpu_allocation_type,omitempty"`
+	CPUPlatform             string  `json:"cpu_platform"`
+	NetworkTier             string  `json:"network_tier,omitempty"`
+	Image                   string  `json:"image"`
+	Datacenter              string  `json:"datacenter"`
+	NetworkStack            string  `json:"network_stack,omitempty"`
+	AuthMethod              string  `json:"auth_method"`
+	SSHKeyID                *int64  `json:"ssh_key_id,omitempty"`
+	PrimaryIPv4FloatingIPID *string `json:"primary_ipv4_floating_ip_id,omitempty"`
+	PrimaryIPv6FloatingIPID *string `json:"primary_ipv6_floating_ip_id,omitempty"`
+	Password                *string `json:"password,omitempty"`
+	PasswordConfirm         *string `json:"password_confirmation,omitempty"`
+	CustomCloudInit         *string `json:"custom_cloud_init,omitempty"`
 }
 
 // UpdateVpsRequest represents a request to update a VPS.
@@ -238,7 +246,8 @@ func (c *Client) ListVps(ctx context.Context) ([]VpsInstance, error) {
 
 // WaitForVpsStatus waits for a VPS to reach a target status
 func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
@@ -263,10 +272,6 @@ func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus s
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for VPS %s to reach status %s", id, targetStatus)
-			}
-
 			status, err := c.GetVpsStatus(ctx, id)
 			if err != nil {
 				if IsNotFound(err) && targetStatus == "deleted" {
@@ -289,18 +294,18 @@ func (c *Client) WaitForVpsStatus(ctx context.Context, id string, targetStatus s
 
 // WaitForVpsDeletion waits for a VPS to be deleted
 func (c *Client) WaitForVpsDeletion(ctx context.Context, id string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
+	tick := time.After(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return fmt.Errorf("timeout waiting for VPS %s to be deleted", id)
-			}
+		case <-tick:
+			tick = ticker.C
 
 			_, err := c.GetVps(ctx, id)
 			if err != nil {

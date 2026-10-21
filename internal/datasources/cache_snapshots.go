@@ -29,6 +29,8 @@ type CacheSnapshotModel struct {
 	Status          types.String  `tfsdk:"status"`
 	CacheInstanceID types.String  `tfsdk:"cache_instance_id"`
 	SizeMB          types.Float64 `tfsdk:"size_mb"`
+	SizeBytes       types.Int64   `tfsdk:"size_bytes"`
+	SizeBasis       types.String  `tfsdk:"size_basis"`
 	CreatedAt       types.String  `tfsdk:"created_at"`
 }
 
@@ -55,6 +57,8 @@ func (d *CacheSnapshotsDataSource) Schema(ctx context.Context, req datasource.Sc
 						"status":            schema.StringAttribute{Computed: true},
 						"cache_instance_id": schema.StringAttribute{Computed: true},
 						"size_mb":           schema.Float64Attribute{Computed: true},
+						"size_bytes":        schema.Int64Attribute{Computed: true},
+						"size_basis":        schema.StringAttribute{Computed: true},
 						"created_at":        schema.StringAttribute{Computed: true},
 					},
 				},
@@ -100,8 +104,19 @@ func (d *CacheSnapshotsDataSource) Read(ctx context.Context, req datasource.Read
 			Description:     types.StringValue(s.Description),
 			Status:          types.StringValue(s.Status),
 			CacheInstanceID: types.StringValue(s.CacheInstanceID),
-			SizeMB:          types.Float64Value(s.SizeMB),
+			SizeMB:          types.Float64Null(),
+			SizeBytes:       types.Int64Null(),
+			SizeBasis:       types.StringNull(),
 			CreatedAt:       types.StringValue(s.CreatedAt),
+		}
+		if s.SizeKnown {
+			data.Snapshots[i].SizeMB = types.Float64Value(s.SizeMB)
+		}
+		if s.SizeBytes != nil {
+			data.Snapshots[i].SizeBytes = types.Int64Value(*s.SizeBytes)
+		}
+		if s.SizeBasis != nil {
+			data.Snapshots[i].SizeBasis = types.StringValue(*s.SizeBasis)
 		}
 	}
 

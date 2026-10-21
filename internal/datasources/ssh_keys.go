@@ -26,7 +26,10 @@ type SshKeyModel struct {
 	Name        types.String `tfsdk:"name"`
 	Fingerprint types.String `tfsdk:"fingerprint"`
 	PublicKey   types.String `tfsdk:"public_key"`
+	IsDefault   types.Bool   `tfsdk:"is_default"`
 	CreatedAt   types.String `tfsdk:"created_at"`
+	UpdatedAt   types.String `tfsdk:"updated_at"`
+	UserID      types.Int64  `tfsdk:"user_id"`
 }
 
 func NewSshKeysDataSource() datasource.DataSource {
@@ -62,10 +65,13 @@ func (d *SshKeysDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 							Description: "The SSH public key.",
 							Computed:    true,
 						},
+						"is_default": schema.BoolAttribute{Description: "Whether this is your default SSH key.", Computed: true},
 						"created_at": schema.StringAttribute{
 							Description: "Timestamp when the key was created.",
 							Computed:    true,
 						},
+						"updated_at": schema.StringAttribute{Description: "Last update timestamp.", Computed: true},
+						"user_id":    schema.Int64Attribute{Description: "Owning user ID.", Computed: true},
 					},
 				},
 			},
@@ -114,7 +120,10 @@ func (d *SshKeysDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			Name:        types.StringValue(key.Name),
 			Fingerprint: types.StringValue(key.Fingerprint),
 			PublicKey:   types.StringValue(key.PublicKey),
+			IsDefault:   types.BoolValue(key.IsDefault),
 			CreatedAt:   types.StringValue(key.CreatedAt),
+			UpdatedAt:   types.StringValue(key.UpdatedAt),
+			UserID:      types.Int64Value(int64(key.UserID)),
 		}
 	}
 

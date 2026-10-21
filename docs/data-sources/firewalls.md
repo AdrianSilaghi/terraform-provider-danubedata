@@ -59,7 +59,9 @@ This data source has no arguments.
   * `name` - Name of the firewall.
   * `description` - Description of the firewall.
   * `status` - Current status (`draft`, `active`, `applying`, `error`).
-  * `rules_count` - Number of rules in the firewall.
+  * `is_default` / `is_system` - Default marker and platform-managed flag.
+  * `default_action` - Default firewall action.
+  * `rules_count` - Number of rules in the firewall. The provider reads each firewall to count rules because list responses may omit them.
   * `created_at` - Timestamp when the firewall was created.
 
 This data source does not return the individual rules. Use the `danubedata_firewall`

@@ -22,16 +22,19 @@ type StorageAccessKeysDataSourceModel struct {
 }
 
 type StorageAccessKeyModel struct {
-	ID             types.String `tfsdk:"id"`
-	Name           types.String `tfsdk:"name"`
-	AccessKeyID    types.String `tfsdk:"access_key_id"`
-	Status         types.String `tfsdk:"status"`
-	AccessType     types.String `tfsdk:"access_type"`
-	IsPrefixScoped types.Bool   `tfsdk:"is_prefix_scoped"`
-	ExpiresAt      types.String `tfsdk:"expires_at"`
-	LastUsedAt     types.String `tfsdk:"last_used_at"`
-	IsExpired      types.Bool   `tfsdk:"is_expired"`
-	CreatedAt      types.String `tfsdk:"created_at"`
+	ID                types.String `tfsdk:"id"`
+	Name              types.String `tfsdk:"name"`
+	AccessKeyID       types.String `tfsdk:"access_key_id"`
+	Status            types.String `tfsdk:"status"`
+	AccessType        types.String `tfsdk:"access_type"`
+	ARN               types.String `tfsdk:"arn"`
+	Scope             types.String `tfsdk:"scope"`
+	BucketPermissions types.Map    `tfsdk:"bucket_permissions"`
+	IsPrefixScoped    types.Bool   `tfsdk:"is_prefix_scoped"`
+	ExpiresAt         types.String `tfsdk:"expires_at"`
+	LastUsedAt        types.String `tfsdk:"last_used_at"`
+	IsExpired         types.Bool   `tfsdk:"is_expired"`
+	CreatedAt         types.String `tfsdk:"created_at"`
 }
 
 func NewStorageAccessKeysDataSource() datasource.DataSource {
@@ -71,6 +74,9 @@ func (d *StorageAccessKeysDataSource) Schema(ctx context.Context, req datasource
 							Description: "Access type (full or restricted).",
 							Computed:    true,
 						},
+						"arn":                schema.StringAttribute{Description: "S3 principal ARN, when available.", Computed: true},
+						"scope":              schema.StringAttribute{Description: "Key reach: team, buckets, or none.", Computed: true},
+						"bucket_permissions": schema.MapAttribute{Description: "Bucket ID to permission level for bucket-scoped keys.", Computed: true, ElementType: types.StringType},
 						"is_prefix_scoped": schema.BoolAttribute{
 							Description: "Whether the key is scoped to specific bucket prefixes.",
 							Computed:    true,
@@ -140,9 +146,22 @@ func (d *StorageAccessKeysDataSource) Read(ctx context.Context, req datasource.R
 			AccessKeyID:    types.StringValue(k.AccessKeyID),
 			Status:         types.StringValue(k.Status),
 			AccessType:     types.StringValue(k.AccessType),
+			Scope:          types.StringValue(k.Scope),
 			IsPrefixScoped: types.BoolValue(k.IsPrefixScoped),
 			IsExpired:      types.BoolValue(k.IsExpired),
 			CreatedAt:      types.StringValue(k.CreatedAt),
+		}
+		permissions := make(map[string]string, len(k.BucketPermissions))
+		for _, permission := range k.BucketPermissions {
+			permissions[permission.BucketID] = permission.Level
+		}
+		value, diags := types.MapValueFrom(ctx, types.StringType, permissions)
+		resp.Diagnostics.Append(diags...)
+		data.Keys[i].BucketPermissions = value
+		if k.ARN != nil {
+			data.Keys[i].ARN = types.StringValue(*k.ARN)
+		} else {
+			data.Keys[i].ARN = types.StringNull()
 		}
 		if k.ExpiresAt != nil {
 			data.Keys[i].ExpiresAt = types.StringValue(*k.ExpiresAt)

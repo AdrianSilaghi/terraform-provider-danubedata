@@ -210,14 +210,14 @@ func TestClient_UpdateFirewall(t *testing.T) {
 		if req.Name != "updated-firewall" {
 			t.Errorf("Name = %v, want updated-firewall", req.Name)
 		}
-		if len(req.Rules) != 1 {
-			t.Fatalf("Rules count = %v, want 1", len(req.Rules))
+		if req.Rules == nil || len(*req.Rules) != 1 {
+			t.Fatalf("Rules count = %v, want 1", req.Rules)
 		}
-		if req.Rules[0].Action != "deny" {
-			t.Errorf("Rules[0].Action = %v, want deny", req.Rules[0].Action)
+		if (*req.Rules)[0].Action != "deny" {
+			t.Errorf("Rules[0].Action = %v, want deny", (*req.Rules)[0].Action)
 		}
-		if req.Rules[0].Order != 50 {
-			t.Errorf("Rules[0].Order = %v, want 50", req.Rules[0].Order)
+		if (*req.Rules)[0].Order != 50 {
+			t.Errorf("Rules[0].Order = %v, want 50", (*req.Rules)[0].Order)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -231,17 +231,15 @@ func TestClient_UpdateFirewall(t *testing.T) {
 	defer server.Close()
 
 	c := newTestClient(server)
-	fw, err := c.UpdateFirewall(context.Background(), "fw-123", UpdateFirewallRequest{
-		Name: "updated-firewall",
-		Rules: []CreateFirewallRuleRequest{
-			{
-				Action:    "deny",
-				Direction: "outbound",
-				Protocol:  "any",
-				Order:     50,
-			},
+	rules := []CreateFirewallRuleRequest{
+		{
+			Action:    "deny",
+			Direction: "outbound",
+			Protocol:  "any",
+			Order:     50,
 		},
-	})
+	}
+	fw, err := c.UpdateFirewall(context.Background(), "fw-123", UpdateFirewallRequest{Name: "updated-firewall", Rules: &rules})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -351,5 +349,87 @@ func TestClient_DeployFirewall(t *testing.T) {
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFirewallRuleAPIFieldsRoundTrip(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			_, _ = w.Write([]byte(`{"firewall":{"id":"fw-1","name":"fw","rules":[{"id":"r-1","name":"SSH","action":"allow","direction":"inbound","protocol":"tcp","port":22,"source_instance_ids":[{"id":"source-1","type":"vps"}],"is_locked":true}]}}`))
+		case http.MethodPut:
+			var raw map[string]json.RawMessage
+			if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+				t.Fatal(err)
+			}
+			var rules []map[string]json.RawMessage
+			if err := json.Unmarshal(raw["rules"], &rules); err != nil {
+				t.Fatal(err)
+			}
+			if len(rules) != 1 || string(rules[0]["port"]) != "22" || string(rules[0]["source_instance_ids"]) != `[{"id":"source-1","type":"vps"}]` {
+				t.Errorf("rule lost access restrictions: %s", raw["rules"])
+			}
+			_, _ = w.Write([]byte(`{"firewall":{"id":"fw-1","name":"fw","rules":[]}}`))
+		}
+	})
+	defer server.Close()
+	c := newTestClient(server)
+	fw, err := c.GetFirewall(context.Background(), "fw-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fw.Rules) != 1 || fw.Rules[0].Port == nil || *fw.Rules[0].Port != 22 || !fw.Rules[0].IsLocked {
+		t.Fatalf("decoded rule: %#v", fw.Rules)
+	}
+	rules := []CreateFirewallRuleRequest{{ID: fw.Rules[0].ID, Action: fw.Rules[0].Action, Direction: fw.Rules[0].Direction, Protocol: fw.Rules[0].Protocol, Port: fw.Rules[0].Port, SourceInstanceIDs: fw.Rules[0].SourceInstanceIDs}}
+	if _, err := c.UpdateFirewall(context.Background(), "fw-1", UpdateFirewallRequest{Rules: &rules}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFirewallUpdateCanClearDescriptionWithoutReplacingRules(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if string(body["description"]) != "null" {
+			t.Errorf("description clear = %s", body["description"])
+		}
+		if _, ok := body["rules"]; ok {
+			t.Error("metadata update replaced rules")
+		}
+		_, _ = w.Write([]byte(`{"firewall":{"id":"fw-1"}}`))
+	})
+	defer server.Close()
+	var description *string
+	_, err := newTestClient(server).UpdateFirewall(context.Background(), "fw-1", UpdateFirewallRequest{Description: &description})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFirewallRuleUpdateExplicitlyClearsRestrictions(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Rules []map[string]json.RawMessage `json:"rules"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if len(body.Rules) != 1 {
+			t.Fatalf("rules = %v", body.Rules)
+		}
+		for _, key := range []string{"port", "port_range_start", "port_range_end", "source_ips", "source_instance_ids"} {
+			if string(body.Rules[0][key]) != "null" {
+				t.Errorf("%s = %s, want null to clear", key, body.Rules[0][key])
+			}
+		}
+		_, _ = w.Write([]byte(`{"firewall":{"id":"fw-1"}}`))
+	})
+	defer server.Close()
+	rules := []CreateFirewallRuleRequest{{ID: "r-1", Action: "allow", Direction: "inbound", Protocol: "tcp"}}
+	if _, err := newTestClient(server).UpdateFirewall(context.Background(), "fw-1", UpdateFirewallRequest{Rules: &rules}); err != nil {
+		t.Fatal(err)
 	}
 }

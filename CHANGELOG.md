@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-21
+
+### Breaking changes
+
+- VPS configurations must set `cpu_platform`; serverless configurations must set `slug`.
+- Static-site domain `dns_instructions` is now a string. Existing domain state is migrated automatically.
+- Private Git credentials are rejected during planning because the API does not persist them. Existing private deployments can be imported without configuring credentials.
+- Building from source requires Go 1.26.10. See the [API compatibility guide](docs/guides/api-compatibility.md) before upgrading.
+
+### Fixed
+
+- Align the existing resources with the current API and CLI contracts, including required VPS CPU platform and serverless slug, numeric parameter-group IDs, typed firewall sources and single ports, static-site domain DNS instructions, snapshot decimal sizes, and storage tags.
+- Preserve resource IDs when asynchronous creation succeeds but waiting or refresh fails, so Terraform can recover the created resource.
+- Accept timeout-only snapshot updates without overwriting computed values or discarding the new timeout.
+- Reject HTTP redirects instead of treating a redirected API mutation as successful.
+- Enforce readiness and deletion timeouts during HTTP requests and polling.
+- Report VPS resize as asynchronous because the API does not expose completion.
+- Queue firewall deployment after rule updates and reject unresolved ports or source identities before changing rules.
+- Preserve explicit empty bucket settings and reject mismatched or duplicate access-key permission responses.
+- Preserve imported serverless Git authentication and reject new private Git credentials that the API silently discards.
+- Accept replica timeout changes, replace immutable parameter-group families, and validate database names against API rules.
+- Preserve write-only settings and accept the API's empty-array encoding for associative fields.
+- Update every standalone example and the matching resource documentation. `make docs` now describes the hand-maintained documentation workflow instead of overwriting it with generated pages.
+
+### Added
+
+- Optional provider `team_id` and `DANUBEDATA_TEAM_ID` project selection through `X-Team-Id`.
+- Configuration and response fields for the supported resource families, including network tier, storage autoscaling, serverless rollout generation, scoped storage keys, and bucket settings.
+- Offline Terraform lifecycle tests and response fixtures grounded in the current API, alongside focused client and state regression tests.
+
+### Changed
+
+- Building from source now requires Go 1.26.10. Updated vulnerable transitive dependencies and the release build's Go version.
+- Use the same Makefile targets through both entry points; coverage measures cross-package calls, and local installation uses the selected version.
+
 ## [0.3.4] - 2026-07-19
 
 ### Fixed
@@ -200,7 +235,8 @@ Unit-test fixtures were rewritten to encode the current API contract, so this cl
 - Example configurations for common use cases
 - Complete infrastructure example
 
-[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/AdrianSilaghi/terraform-provider-danubedata/compare/v0.3.1...v0.3.2

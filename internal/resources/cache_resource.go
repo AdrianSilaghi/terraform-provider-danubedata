@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,27 +33,30 @@ type CacheResource struct {
 }
 
 type CacheResourceModel struct {
-	ID               types.String   `tfsdk:"id"`
-	Name             types.String   `tfsdk:"name"`
-	Status           types.String   `tfsdk:"status"`
-	CacheProvider    types.String   `tfsdk:"cache_provider"`
-	ResourceProfile  types.String   `tfsdk:"resource_profile"`
-	MemorySizeMB     types.Int64    `tfsdk:"memory_size_mb"`
-	CPUCores         types.Int64    `tfsdk:"cpu_cores"`
-	Version          types.String   `tfsdk:"version"`
-	Datacenter       types.String   `tfsdk:"datacenter"`
-	ParameterGroupID types.String   `tfsdk:"parameter_group_id"`
-	Endpoint         types.String   `tfsdk:"endpoint"`
-	Port             types.Int64    `tfsdk:"port"`
-	ConnectionInfo   types.String   `tfsdk:"connection_info"`
-	Password         types.String   `tfsdk:"password"`
-	DnsEnabled       types.Bool     `tfsdk:"dns_enabled"`
-	MonthlyCostCents types.Int64    `tfsdk:"monthly_cost_cents"`
-	MonthlyCost      types.Float64  `tfsdk:"monthly_cost"`
-	DeployedAt       types.String   `tfsdk:"deployed_at"`
-	CreatedAt        types.String   `tfsdk:"created_at"`
-	UpdatedAt        types.String   `tfsdk:"updated_at"`
-	Timeouts         timeouts.Value `tfsdk:"timeouts"`
+	ID                        types.String   `tfsdk:"id"`
+	Name                      types.String   `tfsdk:"name"`
+	Status                    types.String   `tfsdk:"status"`
+	CacheProvider             types.String   `tfsdk:"cache_provider"`
+	ResourceProfile           types.String   `tfsdk:"resource_profile"`
+	MemorySizeMB              types.Int64    `tfsdk:"memory_size_mb"`
+	CPUCores                  types.Int64    `tfsdk:"cpu_cores"`
+	Version                   types.String   `tfsdk:"version"`
+	Datacenter                types.String   `tfsdk:"datacenter"`
+	NetworkTier               types.String   `tfsdk:"network_tier"`
+	ParameterGroupID          types.String   `tfsdk:"parameter_group_id"`
+	Configuration             types.Map      `tfsdk:"configuration"`
+	AutomatedSnapshotsEnabled types.Bool     `tfsdk:"automated_snapshots_enabled"`
+	Endpoint                  types.String   `tfsdk:"endpoint"`
+	Port                      types.Int64    `tfsdk:"port"`
+	ConnectionInfo            types.String   `tfsdk:"connection_info"`
+	Password                  types.String   `tfsdk:"password"`
+	DnsEnabled                types.Bool     `tfsdk:"dns_enabled"`
+	MonthlyCostCents          types.Int64    `tfsdk:"monthly_cost_cents"`
+	MonthlyCost               types.Float64  `tfsdk:"monthly_cost"`
+	DeployedAt                types.String   `tfsdk:"deployed_at"`
+	CreatedAt                 types.String   `tfsdk:"created_at"`
+	UpdatedAt                 types.String   `tfsdk:"updated_at"`
+	Timeouts                  timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewCacheResource() resource.Resource {
@@ -75,8 +79,9 @@ func (r *CacheResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "Name of the cache instance.",
-				Required:    true,
+				Description:   "Name of the cache instance.",
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
 						regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`),
@@ -112,9 +117,10 @@ func (r *CacheResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Computed:    true,
 			},
 			"version": schema.StringAttribute{
-				Description: "Version of the cache software.",
-				Optional:    true,
-				Computed:    true,
+				Description:   "Version of the cache software.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), stringplanmodifier.RequiresReplace()},
 			},
 			"datacenter": schema.StringAttribute{
 				Description: "Datacenter location (ash, fsn1, nbg1, hel1).",
@@ -128,6 +134,23 @@ func (r *CacheResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			},
 			"parameter_group_id": schema.StringAttribute{
 				Description: "ID of the parameter group to use for custom configuration.",
+				Optional:    true,
+				Validators:  []validator.String{stringvalidator.RegexMatches(regexp.MustCompile(`^[1-9][0-9]*$`), "must be a positive numeric ID")},
+			},
+			"network_tier": schema.StringAttribute{
+				Description:   "Network tier (standard or 10g). The 10g tier requires account enrollment and location availability.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown(), stringplanmodifier.RequiresReplace()},
+				Validators:    []validator.String{stringvalidator.OneOf("standard", "10g")},
+			},
+			"configuration": schema.MapAttribute{
+				Description: "Engine settings that override unlocked parameter group settings. Values are sent as strings; the API does not return this field, so external changes cannot be detected on refresh.",
+				Optional:    true,
+				ElementType: types.StringType,
+			},
+			"automated_snapshots_enabled": schema.BoolAttribute{
+				Description: "Enable or disable automated snapshots. The API does not return this setting, so external changes cannot be detected on refresh.",
 				Optional:    true,
 			},
 			"endpoint": schema.StringAttribute{
@@ -226,13 +249,28 @@ func (r *CacheResource) Create(ctx context.Context, req resource.CreateRequest, 
 		Datacenter:      data.Datacenter.ValueString(),
 		ResourceProfile: data.ResourceProfile.ValueString(),
 	}
+	if !data.NetworkTier.IsNull() && !data.NetworkTier.IsUnknown() {
+		createReq.NetworkTier = data.NetworkTier.ValueString()
+	}
+	if !data.Configuration.IsNull() && !data.Configuration.IsUnknown() {
+		config := make(map[string]string)
+		resp.Diagnostics.Append(data.Configuration.ElementsAs(ctx, &config, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		createReq.Configuration = config
+	}
 
 	if !data.Version.IsNull() && !data.Version.IsUnknown() {
 		createReq.Version = data.Version.ValueString()
 	}
 
 	if !data.ParameterGroupID.IsNull() && !data.ParameterGroupID.IsUnknown() {
-		paramGroupID := data.ParameterGroupID.ValueString()
+		paramGroupID, err := strconv.Atoi(data.ParameterGroupID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Invalid parameter group ID", err.Error())
+			return
+		}
 		createReq.ParameterGroupID = &paramGroupID
 	}
 
@@ -249,6 +287,10 @@ func (r *CacheResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	data.ID = types.StringValue(cache.ID)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), cache.ID)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	tflog.Info(ctx, "Cache instance created, waiting for running state", map[string]interface{}{
 		"id":   cache.ID,
@@ -286,6 +328,14 @@ func (r *CacheResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if data.DnsEnabled.ValueBool() {
 		if err := r.client.EnableCacheDns(ctx, cache.ID); err != nil {
 			resp.Diagnostics.AddError("Failed to enable cache DNS", err.Error())
+			return
+		}
+	}
+
+	if !data.AutomatedSnapshotsEnabled.IsNull() && !data.AutomatedSnapshotsEnabled.IsUnknown() {
+		enabled := data.AutomatedSnapshotsEnabled.ValueBool()
+		if _, err := r.client.UpdateCache(ctx, cache.ID, client.UpdateCacheRequest{AutomatedSnapshotsEnabled: &enabled}); err != nil {
+			resp.Diagnostics.AddError("Failed to configure automated cache snapshots", err.Error())
 			return
 		}
 	}
@@ -352,10 +402,33 @@ func (r *CacheResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	}
 
 	if !data.ParameterGroupID.Equal(state.ParameterGroupID) {
-		if !data.ParameterGroupID.IsNull() {
-			paramGroupID := data.ParameterGroupID.ValueString()
-			updateReq.ParameterGroupID = &paramGroupID
+		if data.ParameterGroupID.IsNull() {
+			updateReq.ParameterGroupID = new(*int)
+		} else {
+			paramGroupID, err := strconv.Atoi(data.ParameterGroupID.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddError("Invalid parameter group ID", err.Error())
+				return
+			}
+			paramGroupIDPtr := &paramGroupID
+			updateReq.ParameterGroupID = &paramGroupIDPtr
 		}
+		hasChanges = true
+	}
+	if !data.Configuration.Equal(state.Configuration) {
+		config := make(map[string]string)
+		if !data.Configuration.IsNull() {
+			resp.Diagnostics.Append(data.Configuration.ElementsAs(ctx, &config, false)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+		}
+		updateReq.Configuration = &config
+		hasChanges = true
+	}
+	if !data.AutomatedSnapshotsEnabled.Equal(state.AutomatedSnapshotsEnabled) && !data.AutomatedSnapshotsEnabled.IsNull() {
+		enabled := data.AutomatedSnapshotsEnabled.ValueBool()
+		updateReq.AutomatedSnapshotsEnabled = &enabled
 		hasChanges = true
 	}
 
@@ -550,6 +623,9 @@ func (r *CacheResource) mapCacheToState(cache *client.CacheInstance, data *Cache
 	// Map datacenter - preserve from state if not returned by API
 	if cache.Datacenter != "" {
 		data.Datacenter = types.StringValue(cache.Datacenter)
+	}
+	if cache.NetworkTier != "" {
+		data.NetworkTier = types.StringValue(cache.NetworkTier)
 	}
 
 	if cache.Version != "" {

@@ -119,5 +119,6 @@ terraform import danubedata_database_replica.read_1 9f8c2d14-3b7a-4e51-9c6d-2a1f
 - Each replica is a separate billable node in addition to the primary.
 - Create waits for the replica to report ready, and fails fast if it enters
   `error` or `failed`.
-- The provider acts on the API token owner's current team. If you belong to
-  multiple teams, confirm the active team before your first apply.
+- Pin the project with provider `team_id` or `DANUBEDATA_TEAM_ID`. Otherwise,
+  a project-locked token uses its project and an account-wide token uses the
+  account's current project. Confirm the selected project before applying.

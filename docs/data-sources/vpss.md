@@ -53,11 +53,17 @@ This data source has no arguments.
 * `instances` - List of VPS instances. Each instance contains:
   * `id` - Unique identifier (UUID) for the VPS instance.
   * `name` - Name of the VPS instance.
+  * `status_label` - Human-readable status label.
+  * `vnc_access_url` - VNC access URL when available.
+  * `team_id` / `user_id` - Owning project and user IDs.
   * `status` - Current status (`pending`, `provisioning`, `starting`, `running`, `stopping`, `stopped`, `rebooting`, `restoring`, `reinstalling`, `error`, `destroying`, `recreating`).
   * `image` - Operating system image.
   * `datacenter` - Datacenter location.
   * `resource_profile` - Resource profile slug (e.g. `nano_shared`, `micro_shared`) selecting CPU, memory and storage.
   * `cpu_allocation_type` - CPU allocation type (`shared` or `dedicated`).
+  * `cpu_platform` - Processor platform (`amd` or `intel`), null for legacy instances without one.
+  * `network_tier` - Network tier (`standard` or `10g`).
+  * `primary_ipv4_floating_ip_id` / `primary_ipv6_floating_ip_id` - Reserved primary Floating IP IDs when attached.
   * `cpu_cores` - Number of CPU cores. Derived from `resource_profile`.
   * `memory_size_gb` - Memory size in GB. Derived from `resource_profile`.
   * `storage_size_gb` - Storage size in GB. Derived from `resource_profile`.

@@ -78,6 +78,64 @@ func TestClient_CreateParameterGroup(t *testing.T) {
 	}
 }
 
+func TestClient_UpdateParameterGroup_ClearsLockedParameters(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if string(body["locked_parameters"]) != "[]" {
+			t.Errorf("locked_parameters = %s, want []", body["locked_parameters"])
+		}
+		if string(body["parameters"]) != "{}" {
+			t.Errorf("parameters = %s, want {}", body["parameters"])
+		}
+		_ = json.NewEncoder(w).Encode(parameterGroupResponse{ParameterGroup: ParameterGroup{ID: 1}})
+	})
+	defer server.Close()
+
+	parameters := map[string]interface{}{}
+	lockedParameters := []string{}
+	_, err := newTestClient(server).UpdateParameterGroup(context.Background(), "1", UpdateParameterGroupRequest{Parameters: &parameters, LockedParameters: &lockedParameters})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClient_UpdateParameterGroup_OmitsUnspecifiedSettings(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := body["parameters"]; ok {
+			t.Errorf("unspecified parameters sent: %s", body["parameters"])
+		}
+		if _, ok := body["locked_parameters"]; ok {
+			t.Errorf("unspecified locked_parameters sent: %s", body["locked_parameters"])
+		}
+		_ = json.NewEncoder(w).Encode(parameterGroupResponse{ParameterGroup: ParameterGroup{ID: 1}})
+	})
+	defer server.Close()
+	name := "renamed"
+	if _, err := newTestClient(server).UpdateParameterGroup(context.Background(), "1", UpdateParameterGroupRequest{Name: &name}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestParameterGroup_DecodesEmptyParametersArray(t *testing.T) {
+	var group ParameterGroup
+	if err := json.Unmarshal([]byte(`{"id":1,"parameters":[]}`), &group); err != nil {
+		t.Fatal(err)
+	}
+	if group.Parameters == nil || len(group.Parameters) != 0 {
+		t.Errorf("parameters = %#v, want empty map", group.Parameters)
+	}
+	if err := json.Unmarshal([]byte(`{"id":1,"parameters":["invalid"]}`), &group); err == nil {
+		t.Fatal("expected nonempty positional parameters to be rejected")
+	}
+}
+
 func TestClient_GetParameterGroup(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {

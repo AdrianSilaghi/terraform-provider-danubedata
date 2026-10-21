@@ -56,10 +56,10 @@ func TestAccVpsResource_withResourceProfile(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccVpsResourceConfig_withProfile(sshKeyName, sshPubKey, name, "vps-small"),
+				Config: testAccVpsResourceConfig_withProfile(sshKeyName, sshPubKey, name, "small_shared"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("danubedata_vps.test", "name", name),
-					resource.TestCheckResourceAttr("danubedata_vps.test", "resource_profile", "vps-small"),
+					resource.TestCheckResourceAttr("danubedata_vps.test", "resource_profile", "small_shared"),
 				),
 			},
 		},
@@ -134,6 +134,7 @@ resource "danubedata_vps" "test" {
   name        = %q
   image       = "ubuntu-22.04"
   datacenter  = "fsn1"
+  cpu_platform = "amd"
   auth_method = "ssh_key"
   ssh_key_id  = danubedata_ssh_key.test.id
 
@@ -159,6 +160,7 @@ resource "danubedata_vps" "test" {
   name             = %q
   image            = "ubuntu-22.04"
   datacenter       = "fsn1"
+  cpu_platform     = "amd"
   resource_profile = %q
   auth_method      = "ssh_key"
   ssh_key_id       = danubedata_ssh_key.test.id
@@ -180,6 +182,7 @@ resource "danubedata_vps" "test" {
   name        = %q
   image       = "ubuntu-22.04"
   datacenter  = "fsn1"
+  cpu_platform = "amd"
   auth_method = "password"
   password    = %q
 

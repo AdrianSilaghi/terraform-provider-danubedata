@@ -69,6 +69,24 @@ func TestClient_CreateStorageBucket(t *testing.T) {
 	}
 }
 
+func TestClient_CreateStorageBucket_DisablesEncryption(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if string(body["encryption_enabled"]) != "false" {
+			t.Errorf("encryption_enabled = %s, want false", body["encryption_enabled"])
+		}
+		_, _ = w.Write([]byte(`{"bucket":{"id":"bucket-1"}}`))
+	})
+	defer server.Close()
+	_, err := newTestClient(server).CreateStorageBucket(context.Background(), CreateStorageBucketRequest{Name: "bucket", Region: "fsn1", EncryptionEnabled: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestClient_GetStorageBucket(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -121,7 +139,7 @@ func TestClient_GetStorageBucket_WithTags(t *testing.T) {
 				"name": "my-bucket",
 				"status": "active",
 				"region": "fsn1",
-				"tags": ["production", "team-a"]
+				"tags": {"environment": "production", "team": "a"}
 			},
 			"endpoint": "https://s3.danubedata.ro"
 		}`))
@@ -134,8 +152,45 @@ func TestClient_GetStorageBucket_WithTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(bucket.Tags) != 2 || bucket.Tags[0] != "production" || bucket.Tags[1] != "team-a" {
-		t.Errorf("Tags = %v, want [production team-a]", bucket.Tags)
+	if len(bucket.Tags) != 2 || bucket.Tags["environment"] != "production" {
+		t.Errorf("Tags = %v, want environment=production", bucket.Tags)
+	}
+}
+
+func TestClient_GetStorageBucket_EmptyTags(t *testing.T) {
+	for _, tags := range []string{"[]", "null"} {
+		t.Run(tags, func(t *testing.T) {
+			server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(`{"bucket":{"id":"bucket-1","tags":` + tags + `}}`))
+			})
+			defer server.Close()
+			bucket, err := newTestClient(server).GetStorageBucket(context.Background(), "bucket-1")
+			if err != nil || len(bucket.Tags) != 0 {
+				t.Fatalf("tags %s: bucket=%#v err=%v", tags, bucket, err)
+			}
+		})
+	}
+}
+
+func TestClient_CreateScopedStorageAccessKey(t *testing.T) {
+	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if string(body["scope"]) != `"buckets"` || string(body["bucket_permissions"]) != `[{"bucket_id":"bucket-1","level":"read"}]` {
+			t.Errorf("scope request = %s, %s", body["scope"], body["bucket_permissions"])
+		}
+		_, _ = w.Write([]byte(`{"id":"key-1","name":"backup","access_key_id":"AK","secret_access_key":"secret","scope":"buckets","bucket_permissions":[{"bucket_id":"bucket-1","level":"read"}]}`))
+	})
+	defer server.Close()
+	request := CreateStorageAccessKeyRequest{Name: "backup", Scope: "buckets", BucketPermissions: []StorageKeyBucketPermission{{BucketID: "bucket-1", Level: "read"}}}
+	key, err := newTestClient(server).CreateStorageAccessKey(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key.Scope != "buckets" || len(key.BucketPermissions) != 1 || key.BucketPermissions[0].Level != "read" {
+		t.Fatalf("scope response = %#v", key)
 	}
 }
 

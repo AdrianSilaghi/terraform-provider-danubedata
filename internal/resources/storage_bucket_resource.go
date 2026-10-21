@@ -1,9 +1,13 @@
 package resources
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/AdrianSilaghi/terraform-provider-danubedata/internal/client"
@@ -13,8 +17,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -32,24 +36,32 @@ type StorageBucketResource struct {
 }
 
 type StorageBucketResourceModel struct {
-	ID                types.String   `tfsdk:"id"`
-	Name              types.String   `tfsdk:"name"`
-	DisplayName       types.String   `tfsdk:"display_name"`
-	Status            types.String   `tfsdk:"status"`
-	Region            types.String   `tfsdk:"region"`
-	EndpointURL       types.String   `tfsdk:"endpoint_url"`
-	MinioBucketName   types.String   `tfsdk:"minio_bucket_name"`
-	PublicAccess      types.Bool     `tfsdk:"public_access"`
-	VersioningEnabled types.Bool     `tfsdk:"versioning_enabled"`
-	EncryptionEnabled types.Bool     `tfsdk:"encryption_enabled"`
-	EncryptionType    types.String   `tfsdk:"encryption_type"`
-	SizeBytes         types.Int64    `tfsdk:"size_bytes"`
-	ObjectCount       types.Int64    `tfsdk:"object_count"`
-	MonthlyCostCents  types.Int64    `tfsdk:"monthly_cost_cents"`
-	MonthlyCost       types.Float64  `tfsdk:"monthly_cost"`
-	CreatedAt         types.String   `tfsdk:"created_at"`
-	UpdatedAt         types.String   `tfsdk:"updated_at"`
-	Timeouts          timeouts.Value `tfsdk:"timeouts"`
+	ID                 types.String   `tfsdk:"id"`
+	Name               types.String   `tfsdk:"name"`
+	DisplayName        types.String   `tfsdk:"display_name"`
+	Status             types.String   `tfsdk:"status"`
+	Region             types.String   `tfsdk:"region"`
+	EndpointURL        types.String   `tfsdk:"endpoint_url"`
+	MinioBucketName    types.String   `tfsdk:"minio_bucket_name"`
+	PublicAccess       types.Bool     `tfsdk:"public_access"`
+	VersioningEnabled  types.Bool     `tfsdk:"versioning_enabled"`
+	EncryptionEnabled  types.Bool     `tfsdk:"encryption_enabled"`
+	EncryptionType     types.String   `tfsdk:"encryption_type"`
+	EncryptionKMSKeyID types.String   `tfsdk:"encryption_kms_key_id"`
+	ObjectLockEnabled  types.Bool     `tfsdk:"object_lock_enabled"`
+	ObjectLockMode     types.String   `tfsdk:"object_lock_default_retention_mode"`
+	ObjectLockDays     types.Int64    `tfsdk:"object_lock_default_retention_days"`
+	SizeLimitBytes     types.Int64    `tfsdk:"size_limit_bytes"`
+	CorsConfiguration  types.String   `tfsdk:"cors_configuration"`
+	LifecycleRules     types.String   `tfsdk:"lifecycle_rules"`
+	Tags               types.Map      `tfsdk:"tags"`
+	SizeBytes          types.Int64    `tfsdk:"size_bytes"`
+	ObjectCount        types.Int64    `tfsdk:"object_count"`
+	MonthlyCostCents   types.Int64    `tfsdk:"monthly_cost_cents"`
+	MonthlyCost        types.Float64  `tfsdk:"monthly_cost"`
+	CreatedAt          types.String   `tfsdk:"created_at"`
+	UpdatedAt          types.String   `tfsdk:"updated_at"`
+	Timeouts           timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewStorageBucketResource() resource.Resource {
@@ -136,10 +148,43 @@ func (r *StorageBucketResource) Schema(ctx context.Context, req resource.SchemaR
 				Description: "Encryption type (none, sse-s3, sse-kms).",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("sse-s3"),
 				Validators: []validator.String{
 					stringvalidator.OneOf("none", "sse-s3", "sse-kms"),
 				},
+			},
+			"encryption_kms_key_id": schema.StringAttribute{
+				Description: "KMS key ID required for sse-kms. The API does not return this value on read.",
+				Optional:    true, Sensitive: true,
+			},
+			"object_lock_enabled": schema.BoolAttribute{
+				Description: "Enable Object Lock at bucket creation. Cannot be disabled later.",
+				Optional:    true, Computed: true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown(), boolplanmodifier.RequiresReplace()},
+			},
+			"object_lock_default_retention_mode": schema.StringAttribute{
+				Description: "Default Object Lock retention mode: GOVERNANCE or COMPLIANCE. Set together with days.",
+				Optional:    true,
+				Validators:  []validator.String{stringvalidator.OneOf("GOVERNANCE", "COMPLIANCE")},
+			},
+			"object_lock_default_retention_days": schema.Int64Attribute{
+				Description: "Default Object Lock retention in days (1 to 36500). Set together with mode.",
+				Optional:    true,
+			},
+			"size_limit_bytes": schema.Int64Attribute{
+				Description: "Bucket quota in bytes, at least 1 GiB. Applied after creation; null removes it.",
+				Optional:    true,
+			},
+			"cors_configuration": schema.StringAttribute{
+				Description: "JSON S3 CORS configuration (use jsonencode with CORSRules).",
+				Optional:    true,
+			},
+			"lifecycle_rules": schema.StringAttribute{
+				Description: "JSON array of S3 lifecycle rules (use jsonencode).",
+				Optional:    true,
+			},
+			"tags": schema.MapAttribute{
+				Description: "Bucket tags as name to value map (up to 50 tags).",
+				Optional:    true, ElementType: types.StringType,
 			},
 			"size_bytes": schema.Int64Attribute{
 				Description: "Current size of the bucket in bytes.",
@@ -217,6 +262,50 @@ func (r *StorageBucketResource) Create(ctx context.Context, req resource.CreateR
 		VersioningEnabled: data.VersioningEnabled.ValueBool(),
 		PublicAccess:      data.PublicAccess.ValueBool(),
 		EncryptionEnabled: data.EncryptionEnabled.ValueBool(),
+		ObjectLockEnabled: data.ObjectLockEnabled.ValueBool(),
+	}
+	if data.ObjectLockEnabled.ValueBool() && !data.VersioningEnabled.ValueBool() {
+		resp.Diagnostics.AddError("Invalid Object Lock settings", "Object Lock requires versioning_enabled = true.")
+		return
+	}
+	if data.ObjectLockMode.IsNull() != data.ObjectLockDays.IsNull() || (!data.ObjectLockMode.IsNull() && !data.ObjectLockEnabled.ValueBool()) {
+		resp.Diagnostics.AddError("Invalid Object Lock settings", "Retention mode and days must be set together on an Object Lock bucket.")
+		return
+	}
+	if !data.ObjectLockMode.IsNull() {
+		mode, days := data.ObjectLockMode.ValueString(), data.ObjectLockDays.ValueInt64()
+		if days < 1 || days > 36500 {
+			resp.Diagnostics.AddError("Invalid retention days", "Retention days must be between 1 and 36500.")
+			return
+		}
+		createReq.ObjectLockMode, createReq.ObjectLockDays = &mode, &days
+	}
+	if !data.SizeLimitBytes.IsNull() && data.SizeLimitBytes.ValueInt64() < 1073741824 {
+		resp.Diagnostics.AddError("Invalid size limit", "Size limit must be at least 1 GiB.")
+		return
+	}
+	if !data.EncryptionKMSKeyID.IsNull() {
+		createReq.EncryptionKMSKeyID = data.EncryptionKMSKeyID.ValueString()
+	}
+	if !data.Tags.IsNull() {
+		resp.Diagnostics.Append(data.Tags.ElementsAs(ctx, &createReq.Tags, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	if !data.CorsConfiguration.IsNull() {
+		createReq.CorsConfiguration = json.RawMessage(data.CorsConfiguration.ValueString())
+		if !json.Valid(createReq.CorsConfiguration) {
+			resp.Diagnostics.AddError("Invalid CORS configuration", "CORS configuration must be valid JSON.")
+			return
+		}
+	}
+	if !data.LifecycleRules.IsNull() {
+		createReq.LifecycleRules = json.RawMessage(data.LifecycleRules.ValueString())
+		if !json.Valid(createReq.LifecycleRules) {
+			resp.Diagnostics.AddError("Invalid lifecycle rules", "Lifecycle rules must be valid JSON.")
+			return
+		}
 	}
 
 	if !data.DisplayName.IsNull() && !data.DisplayName.IsUnknown() {
@@ -225,6 +314,12 @@ func (r *StorageBucketResource) Create(ctx context.Context, req resource.CreateR
 
 	if !data.EncryptionType.IsNull() && !data.EncryptionType.IsUnknown() {
 		createReq.EncryptionType = data.EncryptionType.ValueString()
+	}
+	if (createReq.EncryptionType == "sse-kms") != (createReq.EncryptionKMSKeyID != "") ||
+		(createReq.EncryptionEnabled && createReq.EncryptionType == "none") ||
+		(!createReq.EncryptionEnabled && createReq.EncryptionType != "none") {
+		resp.Diagnostics.AddError("Invalid encryption settings", "Use type none when encryption is disabled; use sse-s3 or sse-kms when enabled. sse-kms requires a KMS key ID.")
+		return
 	}
 
 	tflog.Debug(ctx, "Creating storage bucket", map[string]interface{}{
@@ -239,6 +334,10 @@ func (r *StorageBucketResource) Create(ctx context.Context, req resource.CreateR
 	}
 
 	data.ID = types.StringValue(bucket.ID)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), data.ID)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	tflog.Info(ctx, "Storage bucket created, waiting for active state", map[string]interface{}{
 		"id":   bucket.ID,
@@ -260,6 +359,15 @@ func (r *StorageBucketResource) Create(ctx context.Context, req resource.CreateR
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to read storage bucket after creation", err.Error())
 		return
+	}
+	if !data.SizeLimitBytes.IsNull() {
+		limit := data.SizeLimitBytes.ValueInt64()
+		limitPtr := &limit
+		bucket, err = r.client.UpdateStorageBucket(ctx, bucket.ID, client.UpdateStorageBucketRequest{SizeLimitBytes: &limitPtr})
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to set bucket size limit", err.Error())
+			return
+		}
 	}
 
 	r.mapBucketToState(bucket, &data)
@@ -301,6 +409,19 @@ func (r *StorageBucketResource) Update(ctx context.Context, req resource.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var configuredType types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("encryption_type"), &configuredType)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !data.EncryptionEnabled.Equal(state.EncryptionEnabled) && configuredType.IsNull() {
+		resp.Diagnostics.AddError("Encryption type required", "Set encryption_type to none when disabling encryption, or sse-s3 or sse-kms when enabling it.")
+		return
+	}
+	if !configuredType.IsNull() && ((data.EncryptionEnabled.ValueBool() && configuredType.ValueString() == "none") || (!data.EncryptionEnabled.ValueBool() && configuredType.ValueString() != "none")) {
+		resp.Diagnostics.AddError("Invalid encryption settings", "encryption_enabled and encryption_type must agree.")
+		return
+	}
 
 	// Get timeout
 	updateTimeout, diags := data.Timeouts.Update(ctx, 10*time.Minute)
@@ -317,6 +438,10 @@ func (r *StorageBucketResource) Update(ctx context.Context, req resource.UpdateR
 	hasChanges := false
 
 	if !data.DisplayName.Equal(state.DisplayName) {
+		if data.DisplayName.IsNull() {
+			resp.Diagnostics.AddError("Cannot clear display name", "The API does not support clearing display_name after creation. Set a new value instead.")
+			return
+		}
 		displayName := data.DisplayName.ValueString()
 		updateReq.DisplayName = &displayName
 		hasChanges = true
@@ -340,10 +465,89 @@ func (r *StorageBucketResource) Update(ctx context.Context, req resource.UpdateR
 		hasChanges = true
 	}
 
-	if !data.EncryptionType.Equal(state.EncryptionType) {
+	if !data.EncryptionType.IsUnknown() && !data.EncryptionType.Equal(state.EncryptionType) {
 		encType := data.EncryptionType.ValueString()
 		updateReq.EncryptionType = &encType
 		hasChanges = true
+	}
+	if !data.EncryptionKMSKeyID.Equal(state.EncryptionKMSKeyID) {
+		if data.EncryptionKMSKeyID.IsNull() && data.EncryptionType.ValueString() == "sse-kms" {
+			resp.Diagnostics.AddError("Invalid encryption settings", "A bucket using sse-kms must retain its KMS key ID or change encryption_type.")
+			return
+		}
+		keyID := data.EncryptionKMSKeyID.ValueString()
+		if !data.EncryptionKMSKeyID.IsNull() {
+			updateReq.EncryptionKMSKeyID = &keyID
+		}
+		hasChanges = true
+	}
+	if !data.ObjectLockMode.Equal(state.ObjectLockMode) || !data.ObjectLockDays.Equal(state.ObjectLockDays) {
+		if !data.ObjectLockEnabled.ValueBool() || data.ObjectLockMode.IsNull() != data.ObjectLockDays.IsNull() {
+			resp.Diagnostics.AddError("Invalid Object Lock settings", "Retention mode and days must be set together on an Object Lock bucket.")
+			return
+		}
+		var mode *string
+		var days *int64
+		if !data.ObjectLockMode.IsNull() {
+			m, d := data.ObjectLockMode.ValueString(), data.ObjectLockDays.ValueInt64()
+			if d < 1 || d > 36500 {
+				resp.Diagnostics.AddError("Invalid retention days", "Retention days must be between 1 and 36500.")
+				return
+			}
+			mode, days = &m, &d
+		}
+		updateReq.ObjectLockMode, updateReq.ObjectLockDays = &mode, &days
+		hasChanges = true
+	}
+	if !data.SizeLimitBytes.Equal(state.SizeLimitBytes) {
+		var limit *int64
+		if !data.SizeLimitBytes.IsNull() {
+			value := data.SizeLimitBytes.ValueInt64()
+			if value < 1073741824 {
+				resp.Diagnostics.AddError("Invalid size limit", "Size limit must be at least 1 GiB.")
+				return
+			}
+			limit = &value
+		}
+		updateReq.SizeLimitBytes = &limit
+		hasChanges = true
+	}
+	if !data.Tags.Equal(state.Tags) {
+		tags := map[string]string{}
+		if !data.Tags.IsNull() {
+			resp.Diagnostics.Append(data.Tags.ElementsAs(ctx, &tags, false)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+		}
+		updateReq.Tags = &tags
+		hasChanges = true
+	}
+	if !data.CorsConfiguration.Equal(state.CorsConfiguration) {
+		updateReq.CorsConfiguration = json.RawMessage(data.CorsConfiguration.ValueString())
+		if data.CorsConfiguration.IsNull() {
+			updateReq.CorsConfiguration = json.RawMessage(`{"CORSRules":[]}`)
+		}
+		if !json.Valid(updateReq.CorsConfiguration) {
+			resp.Diagnostics.AddError("Invalid CORS configuration", "CORS configuration must be valid JSON.")
+			return
+		}
+		hasChanges = true
+	}
+	if !data.LifecycleRules.Equal(state.LifecycleRules) {
+		updateReq.LifecycleRules = json.RawMessage(data.LifecycleRules.ValueString())
+		if data.LifecycleRules.IsNull() {
+			updateReq.LifecycleRules = json.RawMessage(`[]`)
+		}
+		if !json.Valid(updateReq.LifecycleRules) {
+			resp.Diagnostics.AddError("Invalid lifecycle rules", "Lifecycle rules must be valid JSON.")
+			return
+		}
+		hasChanges = true
+	}
+	if updateReq.EncryptionType != nil && *updateReq.EncryptionType == "sse-kms" && data.EncryptionKMSKeyID.IsNull() {
+		resp.Diagnostics.AddError("Invalid encryption settings", "sse-kms requires encryption_kms_key_id.")
+		return
 	}
 
 	if hasChanges {
@@ -436,6 +640,39 @@ func (r *StorageBucketResource) mapBucketToState(bucket *client.StorageBucket, d
 	data.PublicAccess = types.BoolValue(bucket.PublicAccess)
 	data.VersioningEnabled = types.BoolValue(bucket.VersioningEnabled)
 	data.EncryptionEnabled = types.BoolValue(bucket.EncryptionEnabled)
+	data.ObjectLockEnabled = types.BoolValue(bucket.ObjectLockEnabled)
+	data.SizeLimitBytes = types.Int64Null()
+	if bucket.SizeLimitBytes != nil {
+		data.SizeLimitBytes = types.Int64Value(*bucket.SizeLimitBytes)
+	}
+	data.ObjectLockMode = types.StringNull()
+	if bucket.ObjectLockMode != nil {
+		data.ObjectLockMode = types.StringValue(*bucket.ObjectLockMode)
+	}
+	data.ObjectLockDays = types.Int64Null()
+	if bucket.ObjectLockDays != nil {
+		data.ObjectLockDays = types.Int64Value(*bucket.ObjectLockDays)
+	}
+	configuredCors := data.CorsConfiguration
+	data.CorsConfiguration = bucketCorsState(bucket.CorsConfiguration)
+	if data.CorsConfiguration.IsNull() && !configuredCors.IsNull() && !configuredCors.IsUnknown() &&
+		json.Valid([]byte(configuredCors.ValueString())) && bucketCorsState(json.RawMessage(configuredCors.ValueString())).IsNull() {
+		data.CorsConfiguration = configuredCors
+	}
+	configuredLifecycle := data.LifecycleRules
+	data.LifecycleRules = bucketJSONState(bucket.LifecycleRules)
+	if data.LifecycleRules.IsNull() && !configuredLifecycle.IsNull() && !configuredLifecycle.IsUnknown() &&
+		bucketJSONState(json.RawMessage(configuredLifecycle.ValueString())).IsNull() && json.Valid([]byte(configuredLifecycle.ValueString())) {
+		data.LifecycleRules = configuredLifecycle
+	}
+	if len(bucket.Tags) == 0 {
+		if data.Tags.IsNull() || data.Tags.IsUnknown() || len(data.Tags.Elements()) != 0 {
+			data.Tags = types.MapNull(types.StringType)
+		}
+	} else {
+		value, _ := types.MapValueFrom(context.Background(), types.StringType, map[string]string(bucket.Tags))
+		data.Tags = value
+	}
 	data.SizeBytes = types.Int64Value(bucket.SizeBytes)
 	data.ObjectCount = types.Int64Value(int64(bucket.ObjectCount))
 	data.MonthlyCostCents = types.Int64Value(int64(bucket.MonthlyCostCents))
@@ -454,4 +691,54 @@ func (r *StorageBucketResource) mapBucketToState(bucket *client.StorageBucket, d
 	} else {
 		data.EncryptionType = types.StringNull()
 	}
+}
+
+func bucketJSONState(raw json.RawMessage) types.String {
+	if len(raw) == 0 || string(raw) == "null" || string(raw) == "[]" || string(raw) == `{"CORSRules":[]}` {
+		return types.StringNull()
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, raw); err != nil {
+		return types.StringNull()
+	}
+	return types.StringValue(compact.String())
+}
+
+func bucketCorsState(raw json.RawMessage) types.String {
+	var config map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &config); err != nil || config == nil {
+		return types.StringNull()
+	}
+	var rules []json.RawMessage
+	if err := json.Unmarshal(config["CORSRules"], &rules); err != nil {
+		return bucketJSONState(raw)
+	}
+	if len(rules) > 0 && isPlatformCorsRule(rules[0]) {
+		rules = rules[1:]
+	}
+	if len(rules) == 0 {
+		return types.StringNull()
+	}
+	config["CORSRules"], _ = json.Marshal(rules)
+	userConfig, _ := json.Marshal(config)
+	return types.StringValue(string(userConfig))
+}
+
+func isPlatformCorsRule(raw json.RawMessage) bool {
+	var rule struct {
+		AllowedOrigins []string
+		AllowedMethods []string
+		AllowedHeaders []string
+		ExposeHeaders  []string
+		MaxAgeSeconds  int
+	}
+	if err := json.Unmarshal(raw, &rule); err != nil {
+		return false
+	}
+	return len(rule.AllowedOrigins) == 1 &&
+		(strings.HasPrefix(rule.AllowedOrigins[0], "https://console.") || strings.HasPrefix(rule.AllowedOrigins[0], "http://console.")) &&
+		slices.Equal(rule.AllowedMethods, []string{"GET", "PUT", "POST", "DELETE", "HEAD"}) &&
+		slices.Equal(rule.AllowedHeaders, []string{"*"}) &&
+		slices.Equal(rule.ExposeHeaders, []string{"ETag", "x-amz-request-id", "x-amz-id-2"}) &&
+		rule.MaxAgeSeconds == 86400
 }

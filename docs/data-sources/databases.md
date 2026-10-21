@@ -61,6 +61,7 @@ This data source has no arguments.
   * `version` - Database version.
   * `database_name` - Name of the initial database. Null if none was created.
   * `datacenter` - Datacenter location.
+  * `network_tier` - Requested network tier (`standard` or `10g`).
   * `resource_profile` - Resource profile slug selecting CPU, memory and included storage (`micro`, `small`, `medium`, `large`).
   * `cpu_cores` - Number of CPU cores. Derived from `resource_profile`.
   * `memory_size_mb` - Memory size in MB. Derived from `resource_profile`.
